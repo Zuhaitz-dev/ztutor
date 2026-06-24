@@ -37,3 +37,5 @@ jobs:
 
       - name: Build
         run: make build
+        env:
+          COMMIT: ${{ github.sha }}
