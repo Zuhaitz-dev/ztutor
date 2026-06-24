@@ -1,0 +1,59 @@
+# ── build stage ──────────────────────────────────────────────────────────────
+FROM golang:1.22-bookworm AS builder
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+RUN CGO_ENABLED=0 go build \
+      -ldflags "-s -w \
+        -X ztutor/internal/version.Version=${VERSION} \
+        -X ztutor/internal/version.Commit=${COMMIT} \
+        -X ztutor/internal/version.BuildDate=${BUILD_DATE}" \
+      -o /ztutord ./cmd/ztutord/
+
+# ── runtime stage ─────────────────────────────────────────────────────────────
+# Full Debian image so that student code can be compiled and run.
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      gcc \
+      libc6-dev \
+      gdb \
+      python3 \
+      python3-pip \
+      ruby \
+      openjdk-17-jre-headless \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Rust (single-user install under /usr/local so all processes can use it)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+      | sh -s -- -y --profile minimal --no-modify-path \
+    && mv /root/.cargo /usr/local/cargo \
+    && mv /root/.rustup /usr/local/rustup
+ENV PATH="/usr/local/cargo/bin:${PATH}" \
+    RUSTUP_HOME="/usr/local/rustup" \
+    CARGO_HOME="/usr/local/cargo"
+
+# Go runtime for student Go exercises
+COPY --from=builder /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+COPY --from=builder /ztutord /usr/local/bin/ztutord
+
+# Data directory: SSH host key, SQLite DB, license file.
+VOLUME /data
+ENV ZTUTOR_DATA_DIR=/data
+
+# Courses are mounted separately so they can be updated without rebuilding.
+VOLUME /courses
+ENV ZTUTOR_COURSES_DIR=/courses
+
+EXPOSE 2222
+
+ENTRYPOINT ["/usr/local/bin/ztutord"]

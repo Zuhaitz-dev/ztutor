@@ -1,0 +1,39 @@
+# Binaries
+/ztutor
+/ztutord
+/licensegen
+/coursepack
+
+# Runtime state
+*.db
+*.db-shm
+*.db-wal
+ztutor_host_key
+ztutor_host_key.pub
+*.key
+!license_test.key
+!license_test_school.key
+*.pem
+
+# Secrets
+.env
+ztutor_license_keys.json
+test_keys.json
+
+# Encrypted course packages (binary blobs, not for VCS)
+*.course
+
+# Courses are content assets, distributed separately from the platform
+courses/
+
+# Build artifacts
+*.test
+/tuitest
+coverage.out
+coverage.html
+
+# Editor
+.idea/
+.vscode/
+*.swp
+.DS_Store

@@ -1,0 +1,883 @@
+package tui
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"ztutor/internal/db"
+	"ztutor/internal/i18n"
+	"ztutor/internal/lesson"
+	"ztutor/internal/license"
+	"ztutor/internal/logutil"
+	"ztutor/internal/remote"
+	"ztutor/internal/sandbox"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// sized holds terminal dimensions for screens that respond to resizes.
+// Embed in model structs to get Width/Height fields and a HandleResize method.
+type sized struct {
+	Width  int
+	Height int
+}
+
+func (s *sized) HandleResize(msg tea.WindowSizeMsg) {
+	s.Width = msg.Width
+	s.Height = msg.Height
+}
+
+// Named color constants used across the TUI.
+const (
+	ColorAccent  = "212" // pink — titles, borders, cursors
+	ColorCyan    = "81"  // cyan — selected items, highlights
+	ColorAmber   = "214" // amber — mascot sprite, warnings
+	ColorDim     = "243" // mid-gray — descriptions, help bar
+	ColorFaded   = "241" // dark gray — dim/disabled text
+	ColorBody    = "252" // light gray — main content
+	ColorGold    = "220" // gold — stars, rank
+	ColorBorder  = "237" // very dark gray — borders, separators
+	ColorBG      = "236" // dark background — selection highlight
+	ColorSuccess = "42"  // green — success messages
+	ColorError   = "196" // red — error messages
+	ColorHex     = "117" // light blue — hex viewer header
+	ColorSection = "214" // amber — section headers
+)
+
+// backCmd returns a tea.Cmd that fires the given message. Use this instead of
+// inline func() tea.Msg closures for navigation back-to-parent patterns.
+func backCmd(msg tea.Msg) tea.Cmd {
+	return func() tea.Msg { return msg }
+}
+
+// rtlWrap applies rtlAlignBlock when rtl is true, returns content unchanged otherwise.
+func rtlWrap(rtl bool, content string, width int) string {
+	if !rtl {
+		return content
+	}
+	return rtlAlignBlock(content, width)
+}
+
+// dirArrow returns "▸ " in LTR and " ◂" in RTL.
+func dirArrow(rtl bool) string {
+	if rtl {
+		return " ◂"
+	}
+	return "▸ "
+}
+
+// launchGDBMsg is sent by ExerciseScreen when the user wants to start a gdb
+// session. The App forwards it to the server layer, then quits so the SSH
+// handler can run gdb directly with a real PTY.
+type launchGDBMsg struct {
+	build  *sandbox.DebugBuild
+	lesson lesson.Lesson
+}
+
+// achievementEventMsg carries a list of event strings that may unlock achievements.
+type achievementEventMsg struct{ events []string }
+
+type mascotTickMsg struct{}
+
+type mascotFrameSetter interface {
+	SetMascotFrame(int)
+}
+
+// Localizable is implemented by screens that can update their displayed locale
+// without navigating away. When the user presses ^L outside of intro/menu, the
+// App calls SetLocale on the current screen if it implements this interface
+// instead of redirecting to the menu.
+type Localizable interface {
+	SetLocale(loc *i18n.Locale)
+}
+
+func mascotTickCmd() tea.Cmd {
+	return tea.Tick(450*time.Millisecond, func(time.Time) tea.Msg {
+		return mascotTickMsg{}
+	})
+}
+
+type launchAdminMsg struct{}
+
+type changeLangMsg struct{ lang string }
+
+type App struct {
+	username    string
+	db          *db.DB
+	coursesDir  string
+	lessonsDir  string
+	courses     []lesson.Course
+	progress    map[string]int
+	enrolledSet map[string]bool
+	keymap      string
+	streak      int
+	lic         *license.State
+	isAdmin     bool
+
+	uiLang string
+	loc    *i18n.Locale
+
+	langCache map[string]sandbox.Language
+	executor  sandbox.Executor
+
+	pendingNotifications []string
+	pendingCourseEntry   *lesson.Course // set when a course intro is playing
+
+	current   tea.Model
+	launchGDB func(*sandbox.DebugBuild, lesson.Lesson)
+
+	sized
+	mascotFrame int
+
+	LaunchAdmin bool
+}
+
+func NewApp(username, coursesDir, lessonsDir string, database *db.DB, lic *license.State, width, height int, serverKeymap string, launchGDB func(*sandbox.DebugBuild, lesson.Lesson), startLesson *lesson.Lesson) *App {
+	keymap, _ := database.GetUserSetting(username, "keymap")
+	if keymap == "" {
+		keymap = serverKeymap
+	}
+	uiLang, _ := database.GetUserSetting(username, "lang")
+	if uiLang == "" {
+		uiLang = "en"
+	}
+
+	app := &App{
+		username:   username,
+		db:         database,
+		coursesDir: coursesDir,
+		lessonsDir: lessonsDir,
+		lic:        lic,
+		sized:      sized{Width: width, Height: height},
+		keymap:     keymap,
+		launchGDB:  launchGDB,
+		langCache:  make(map[string]sandbox.Language),
+		executor:   sandbox.DefaultExecutor(),
+		uiLang:     uiLang,
+		loc:        i18n.New(uiLang),
+	}
+
+	if u, err := database.GetUser(username); err == nil && u.Role == db.RoleAdmin {
+		app.isAdmin = true
+	}
+
+	app.loadCourses()
+	app.loadProgress()
+	app.streak = database.UpdateStreak(username)
+
+	if startLesson != nil {
+		app.current = NewExerciseScreen(*startLesson, app.resolveLanguage(startLesson), app.executor, width, height, keymap, app.progress[startLesson.ID], app.streak, app.loc, true, true)
+		app.applyMascotFrame()
+	} else {
+		introSeen, _ := database.GetUserSetting(username, "intro_seen")
+		seenIntro := introSeen == "1"
+		app.current = NewIntroScreen(width, height, seenIntro, app.loc)
+		app.applyMascotFrame()
+	}
+
+	return app
+}
+
+func (a *App) WantsRelaunch() bool  { return a.LaunchAdmin }
+func (a *App) RelaunchUser() string { return a.username }
+
+func (a *App) Init() tea.Cmd {
+	cmds := []tea.Cmd{mascotTickCmd()}
+	if a.current != nil {
+		if cmd := a.current.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	return tea.Batch(cmds...)
+}
+
+func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// ^L: save language to DB synchronously before any async cmd, so the
+	// preference is persisted even if the user navigates away immediately.
+	// IntroScreen and MenuScreen rebuild their own content and also emit
+	// changeLangMsg, so we let them handle the key normally — but we still
+	// save to DB here first to close the race.
+	if km, ok := msg.(tea.KeyMsg); ok && km.String() == KeyLanguage {
+		next := a.loc.Next()
+		if err := a.db.SetUserSetting(a.username, "lang", next.Lang()); err != nil {
+			logutil.Warn("failed to save lang for %s: %v", a.username, err)
+		}
+		a.uiLang = next.Lang()
+		a.loc = next
+		_, isIntro := a.current.(*IntroScreen)
+		_, isMenu := a.current.(*MenuScreen)
+		_, isConnect := a.current.(*connectChoiceScreen)
+		if !isIntro && !isMenu && !isConnect {
+			// Reload course/lesson data for the new locale so that when the
+			// user returns to the menu, lesson titles and content are in the
+			// correct language. (The changeLangMsg path for menu/intro already
+			// calls loadCourses; this ensures parity for in-place locale switches.)
+			a.loadCourses()
+			// If the current screen knows how to update its own locale, do
+			// that in place so the user stays where they are. Otherwise fall
+			// back to navigating to the menu so they see the new language.
+			if l, ok := a.current.(Localizable); ok {
+				l.SetLocale(a.loc)
+			} else {
+				a.switchToMenu()
+			}
+			return a, nil
+		}
+		// For intro/menu/connect: pass the key through so they rebuild their
+		// own view. changeLangMsg will arrive later but DB is already saved.
+	}
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		// BubbleTea queries terminal size via ioctl on startup which fails
+		// on an SSH channel and returns 0,0. Ignore those bogus messages.
+		if msg.Width <= 0 || msg.Height <= 0 {
+			return a, nil
+		}
+		a.HandleResize(msg)
+		return a, a.resizeCurrent()
+
+	case mascotTickMsg:
+		a.mascotFrame++
+		a.applyMascotFrame()
+		return a, mascotTickCmd()
+
+	case introCompleteMsg:
+		if msg.courseID != "" {
+			// Course-specific intro finished.
+			key := "course_intro_seen_" + msg.courseID
+			if err := a.db.SetUserSetting(a.username, key, "1"); err != nil {
+				logutil.Warn("failed to save %s for %s: %v", key, a.username, err)
+			}
+			if a.pendingCourseEntry != nil {
+				course := *a.pendingCourseEntry
+				a.pendingCourseEntry = nil
+				// Re-derive course from filtered list so sections reflect current license.
+				for _, fc := range a.filteredCourses() {
+					if fc.ID == course.ID {
+						course = fc
+						break
+					}
+				}
+				if len(course.Sections) == 0 {
+					a.switchToMenu()
+				} else {
+					m := a.newMenuScreenWithCourse(course)
+					a.current = m
+					a.applyMascotFrame()
+				}
+			} else {
+				a.switchToMenu()
+			}
+		} else {
+			// Main app intro finished.
+			if err := a.db.SetUserSetting(a.username, "intro_seen", "1"); err != nil {
+				logutil.Warn("failed to save intro_seen for %s: %v", a.username, err)
+			}
+			execAddr, _ := a.db.GetUserSetting(a.username, "exec_addr")
+			a.current = NewConnectChoiceScreen(a.loc, a.Width, a.Height, execAddr)
+			a.applyMascotFrame()
+			return a, a.current.Init()
+		}
+		return a, nil
+
+	case showCourseIntroMsg:
+		a.pendingCourseEntry = &msg.course
+		a.current = NewCourseIntroScreen(msg.course.ID, msg.course.Language, msg.course.Title, msg.course.CourseIntro, a.loc, a.Width, a.Height)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case changeLangMsg:
+		if err := a.db.SetUserSetting(a.username, "lang", msg.lang); err != nil {
+			logutil.Warn("failed to save lang for %s: %v", a.username, err)
+		}
+		a.uiLang = msg.lang
+		a.loc = i18n.New(msg.lang)
+		a.loadCourses()
+		// Intro rebuilds its own beats; stay there instead of jumping to menu.
+		if _, ok := a.current.(*IntroScreen); ok {
+			return a, nil
+		}
+		// Preserve lesson-list position across language reload for MenuScreen.
+		var savedCourseID string
+		if m, ok := a.current.(*MenuScreen); ok && m.viewLevel == "lessons" && m.selectedCourse != nil {
+			savedCourseID = m.selectedCourse.ID
+		}
+		a.switchToMenu()
+		if savedCourseID != "" {
+			if m, ok := a.current.(*MenuScreen); ok {
+				m.restoreCourse(savedCourseID)
+			}
+		}
+		return a, nil
+
+	case launchAdminMsg:
+		a.LaunchAdmin = true
+		return a, tea.Quit
+
+	case NavigateToMenu:
+		a.switchToMenu()
+		return a, nil
+
+	case NavigateToConnectChoice:
+		execAddr, _ := a.db.GetUserSetting(a.username, "exec_addr")
+		a.current = NewConnectChoiceScreen(a.loc, a.Width, a.Height, execAddr)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case NavigateToRemoteConfig:
+		a.current = NewRemoteConfigScreen(a.loc, a.Width, a.Height, a.db, a.username)
+		return a, a.current.Init()
+
+	case remoteConfigSavedMsg:
+		if msg.addr != "" {
+			a.executor = &sandbox.HybridExecutor{
+				Local:  sandbox.DefaultExecutor(),
+				Remote: remote.NewClientWithToken(msg.addr, msg.token, msg.tls),
+			}
+			logutil.Info("executor updated: remote at %s (tls: %v)", msg.addr, msg.tls)
+		} else {
+			a.executor = sandbox.DefaultExecutor()
+		}
+		a.switchToMenu()
+		return a, nil
+
+	case NavigateToLicenseEntry:
+		a.current = NewLicenseEntryScreen(a.loc, a.Width, a.Height)
+		return a, a.current.Init()
+
+	case licenseEntryDoneMsg:
+		if msg.licState != nil {
+			// Valid license: reload courses with the new license state.
+			a.lic = msg.licState
+			a.loadCourses()
+			a.switchToMenu()
+		}
+		return a, nil
+
+	case NavigateToLessonMsg:
+		a.current = NewLessonScreen(msg.Lesson, a.Width, a.Height, a.loc)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case NavigateToExerciseMsg:
+		if msg.Lesson.IsPremium && !a.canAccessLesson(msg.Lesson) {
+			a.switchToMenu()
+			return a, nil
+		}
+		if len(msg.Lesson.Tutorial) > 0 {
+			key := "tutorial_" + msg.Lesson.ID
+			val, _ := a.db.GetUserSetting(a.username, key)
+			if val != "1" {
+				a.current = NewPreExerciseScreen(msg.Lesson, a.Width, a.Height, a.loc)
+				a.applyMascotFrame()
+				return a, a.current.Init()
+			}
+		}
+		showMascot, showTimer := a.exercisePrefs()
+		a.current = NewExerciseScreen(msg.Lesson, a.resolveLanguage(&msg.Lesson), a.executor, a.Width, a.Height, a.keymap, a.progress[msg.Lesson.ID], a.streak, a.loc, showMascot, showTimer)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case startExerciseMsg:
+		if msg.lesson.IsPremium && !a.canAccessLesson(msg.lesson) {
+			a.switchToMenu()
+			return a, nil
+		}
+		if err := a.db.SetUserSetting(a.username, "tutorial_"+msg.lesson.ID, "1"); err != nil {
+			logutil.Warn("failed to save tutorial_%s for %s: %v", msg.lesson.ID, a.username, err)
+		}
+		showMascot, showTimer := a.exercisePrefs()
+		a.current = NewExerciseScreen(msg.lesson, a.resolveLanguage(&msg.lesson), a.executor, a.Width, a.Height, a.keymap, a.progress[msg.lesson.ID], a.streak, a.loc, showMascot, showTimer)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case NavigateToAchievements:
+		earned, _ := a.db.GetAchievements(a.username)
+		a.current = NewAchievementScreen(earned, a.Width, a.Height, a.loc)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case NavigateToLeaderboard:
+		entries, _ := a.db.Leaderboard()
+		a.current = NewLeaderboardScreen(entries, a.username, a.totalLessons(), a.Width, a.Height, a.loc)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case NavigateToChallengeMsg:
+		a.current = NewChallengeScreen(msg.Challenge, msg.CourseID, msg.Lang, a.executor, a.Width, a.Height, a.loc)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case NavigateToSettings:
+		showMascot, showTimer := a.exercisePrefs()
+		a.current = NewSettingsScreen(a.username, a.db, a.keymap, showMascot, showTimer, a.Width, a.Height, a.loc)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case NavigateToCredits:
+		a.current = NewCreditsScreen(a.Width, a.Height, a.loc)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case settingsSavedMsg:
+		if err := a.db.SetUserSetting(a.username, msg.key, msg.value); err != nil {
+			logutil.Warn("failed to save setting %s for %s: %v", msg.key, a.username, err)
+		}
+		if msg.key == "keymap" {
+			a.keymap = msg.value
+		}
+		a.switchToMenu()
+		return a, nil
+
+	case persistSettingMsg:
+		if err := a.db.SetUserSetting(a.username, msg.key, msg.value); err != nil {
+			logutil.Warn("failed to persist setting %s for %s: %v", msg.key, a.username, err)
+		}
+		return a, nil
+
+	case lessonCompletedMsg:
+		if err := a.db.MarkCompleted(a.username, msg.lessonID, msg.stars); err != nil {
+			logutil.Warn("failed to mark %s completed for %s: %v", msg.lessonID, a.username, err)
+		}
+		if msg.stars > a.progress[msg.lessonID] {
+			a.progress[msg.lessonID] = msg.stars
+		}
+		// Check for graduate achievement: all lessons in the same course done.
+		a.checkGraduate(msg.lessonID)
+		if msg.goNext {
+			lessons := a.allLessons()
+			for i, l := range lessons {
+				if l.ID == msg.lessonID && i+1 < len(lessons) {
+					next := lessons[i+1]
+					showMascot, showTimer := a.exercisePrefs()
+					a.current = NewExerciseScreen(next, a.resolveLanguage(&next), a.executor, a.Width, a.Height, a.keymap, a.progress[next.ID], a.streak, a.loc, showMascot, showTimer)
+					a.applyMascotFrame()
+					return a, a.current.Init()
+				}
+			}
+		}
+		a.switchToMenu()
+		return a, nil
+
+	case achievementEventMsg:
+		a.grantAchievements(msg.events)
+		return a, nil
+
+	case launchGDBMsg:
+		if a.launchGDB != nil {
+			a.launchGDB(msg.build, msg.lesson)
+		}
+		return a, tea.Quit
+	}
+
+	if a.current != nil {
+		m, cmd := a.current.Update(msg)
+		a.current = m
+		a.applyMascotFrame()
+		return a, cmd
+	}
+
+	return a, nil
+}
+
+func (a *App) View() string {
+	if a.current != nil {
+		return a.current.View()
+	}
+	return "loading..."
+}
+
+func (a *App) courseIntroChecker() func(string) bool {
+	return func(courseID string) bool {
+		key := "course_intro_seen_" + courseID
+		val, _ := a.db.GetUserSetting(a.username, key)
+		return val != "1"
+	}
+}
+
+func (a *App) buildMenuScreen(notifications []string) *MenuScreen {
+	enrolled, _ := a.db.ListEnrollments(a.username)
+	a.enrolledSet = make(map[string]bool, len(enrolled))
+	for _, id := range enrolled {
+		a.enrolledSet[id] = true
+	}
+	filtered := filterCourses(a.courses, a.lic, a.enrolledSet)
+	canAccess := func(courseID string) bool {
+		if a.isAdmin {
+			return true
+		}
+		if a.lic != nil && a.lic.CanAccessCourse(courseID) {
+			return true
+		}
+		if a.enrolledSet[courseID] {
+			return true
+		}
+		return strings.Contains(courseID, "01-") || a.lic == nil
+	}
+	return NewMenuScreen(filtered, enrolled, canAccess, a.progress, notifications, a.username, a.streak, a.isAdmin, a.courseIntroChecker(), a.loc, a.Width, a.Height)
+}
+
+func (a *App) switchToMenu() {
+	m := a.buildMenuScreen(a.pendingNotifications)
+	a.pendingNotifications = nil
+	a.current = m
+	a.applyMascotFrame()
+}
+
+// newMenuScreenWithCourse creates a MenuScreen already navigated into a course's
+// lesson list. Used after a course intro completes.
+func (a *App) newMenuScreenWithCourse(c lesson.Course) *MenuScreen {
+	m := a.buildMenuScreen(nil)
+	m.enterCourseDirectly(c)
+	return m
+}
+
+func (a *App) canAccessLesson(l lesson.Lesson) bool {
+	if !l.IsPremium {
+		return true
+	}
+	for _, c := range a.courses {
+		for _, sec := range c.Sections {
+			for _, cl := range sec.Lessons {
+				if cl.ID == l.ID {
+					courseFree := c.Order == 1 || strings.Contains(c.ID, "01-")
+					return courseFree || (a.lic != nil && a.lic.CanAccessCourse(c.ID)) || a.enrolledSet[c.ID]
+				}
+			}
+		}
+	}
+	return true // lesson not found in any course — allow by default
+}
+
+func (a *App) filteredCourses() []lesson.Course {
+	return filterCourses(a.courses, a.lic, a.enrolledSet)
+}
+
+// filterCourses is the pure access-control filter extracted for testability.
+func filterCourses(courses []lesson.Course, lic *license.State, enrolled map[string]bool) []lesson.Course {
+	hasInterviews := lic != nil && lic.HasInterviewQuestions
+
+	var filtered []lesson.Course
+	for _, c := range courses {
+		courseFree := c.Order == 1 || strings.Contains(c.ID, "01-")
+		hasCourseAccess := courseFree || (lic != nil && lic.CanAccessCourse(c.ID)) || enrolled[c.ID]
+
+		if c.EnrollmentRequired && !hasCourseAccess {
+			continue
+		}
+
+		// Filter out interview sections if the license doesn't include them.
+		if !hasInterviews {
+			visible := make([]lesson.Section, 0, len(c.Sections))
+			for _, s := range c.Sections {
+				if s.Type == "interviews" {
+					continue
+				}
+				visible = append(visible, s)
+			}
+			c.Sections = visible
+		}
+
+		if len(c.Sections) > 0 {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+func (a *App) applyMascotFrame() {
+	if setter, ok := a.current.(mascotFrameSetter); ok {
+		setter.SetMascotFrame(a.mascotFrame)
+	}
+}
+
+func (a *App) resizeCurrent() tea.Cmd {
+	if a.current == nil {
+		return nil
+	}
+	m, cmd := a.current.Update(tea.WindowSizeMsg{Width: a.Width, Height: a.Height})
+	a.current = m
+	a.applyMascotFrame()
+	return cmd
+}
+
+func (a *App) loadCourses() {
+	lang := a.uiLang
+	var courses []lesson.Course
+	if a.coursesDir != "" {
+		if info, err := os.Stat(a.coursesDir); err == nil && info.IsDir() {
+			var err error
+			courses, err = lesson.LoadCoursesLang(a.coursesDir, lang)
+			if err != nil {
+				logutil.Warn("load courses from %s: %v", a.coursesDir, err)
+			}
+
+			// Scan for encrypted .course files.
+			var courseKey []byte
+			if a.lic != nil {
+				courseKey = a.lic.CourseKey
+			}
+			encrypted, _ := lesson.ScanEncryptedCourses(a.coursesDir, lang, courseKey, courses)
+			courses = append(courses, encrypted...)
+		}
+	}
+	if len(courses) == 0 {
+		c, err := lesson.LoadAsSingleCourseLang(a.lessonsDir, lang)
+		if err == nil {
+			courses = append(courses, c...)
+		}
+	}
+	a.courses = courses
+}
+
+// exercisePrefs returns the persisted mascot/timer visibility settings.
+func (a *App) exercisePrefs() (showMascot, showTimer bool) {
+	v, _ := a.db.GetUserSetting(a.username, "mascot_visible")
+	showMascot = v != "0" // default visible ("" or "1")
+	t, _ := a.db.GetUserSetting(a.username, "timer_visible")
+	showTimer = t != "0"
+	return
+}
+
+func (a *App) loadProgress() {
+	progress, err := a.db.Progress(a.username)
+	if err != nil {
+		a.progress = make(map[string]int)
+		return
+	}
+	a.progress = progress
+}
+
+func (a *App) resolveLanguage(l *lesson.Lesson) sandbox.Language {
+	langName := l.Language
+	if langName == "" {
+		langName = "c"
+	}
+	if cached, ok := a.langCache[langName]; ok {
+		return cached
+	}
+	lang := sandbox.GetLanguage(langName)
+	if lang == nil {
+		lang = sandbox.GetLanguage("c")
+	}
+	a.langCache[langName] = lang
+	return lang
+}
+
+// totalLessons returns the total number of lessons across all courses.
+func (a *App) totalLessons() int {
+	n := 0
+	for _, c := range a.filteredCourses() {
+		n += c.TotalLessons
+	}
+	return n
+}
+
+// allLessons returns a flat slice of all lessons across all courses.
+func (a *App) allLessons() []lesson.Lesson {
+	var out []lesson.Lesson
+	for _, c := range a.filteredCourses() {
+		for _, sec := range c.Sections {
+			out = append(out, sec.Lessons...)
+		}
+	}
+	return out
+}
+
+// checkGraduate grants the "graduate" achievement if all lessons in the course
+// that contains lessonID have been completed (stars > 0).
+func (a *App) checkGraduate(lessonID string) {
+	for _, c := range a.filteredCourses() {
+		found := false
+		for _, sec := range c.Sections {
+			for _, l := range sec.Lessons {
+				if l.ID == lessonID {
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+		// Found the course — check all lessons across all its sections.
+		allDone := true
+		for _, sec := range c.Sections {
+			for _, cl := range sec.Lessons {
+				if a.progress[cl.ID] == 0 {
+					allDone = false
+					break
+				}
+			}
+			if !allDone {
+				break
+			}
+		}
+		if allDone {
+			if err := a.db.GrantAchievement(a.username, "graduate"); err == nil {
+				if ach := achievementByID("graduate"); ach != nil {
+					notif := fmt.Sprintf("%s %s — %s", ach.Icon, ach.Name, ach.Desc)
+					a.pendingNotifications = append(a.pendingNotifications, notif)
+				}
+			}
+		}
+		return
+	}
+}
+
+// grantAchievements evaluates a list of event strings and grants the
+// corresponding achievements, appending notification strings for newly unlocked
+// ones to a.pendingNotifications.
+func (a *App) grantAchievements(events []string) {
+	// Load already-earned achievements once to avoid duplicating notifications.
+	earned, _ := a.db.GetAchievements(a.username)
+	alreadyEarned := make(map[string]bool, len(earned))
+	for _, id := range earned {
+		alreadyEarned[id] = true
+	}
+
+	tryGrant := func(id string) {
+		if alreadyEarned[id] {
+			return
+		}
+		if err := a.db.GrantAchievement(a.username, id); err != nil {
+			return
+		}
+		alreadyEarned[id] = true // prevent double-notification in one batch
+		if ach := achievementByID(id); ach != nil {
+			notif := fmt.Sprintf("%s %s — %s", ach.Icon, ach.Name, ach.Desc)
+			a.pendingNotifications = append(a.pendingNotifications, notif)
+		}
+	}
+
+	for _, event := range events {
+		switch event {
+		case "compile":
+			tryGrant("first_compile")
+
+		case "pass":
+			tryGrant("first_pass")
+
+		case "pass_1attempt":
+			tryGrant("one_shot")
+
+		case "pass_5attempts":
+			tryGrant("comeback")
+
+		case "pass_3star":
+			tryGrant("perfect")
+			// Check five_perfect threshold.
+			count, err := a.db.CountLessonsWithMinStars(a.username, 3)
+			if err == nil && count >= 5 {
+				tryGrant("five_perfect")
+			}
+
+		case "pass_nowarnings":
+			tryGrant("clean_coder")
+
+		case "gdb":
+			tryGrant("debugger")
+
+		case "asm":
+			tryGrant("disassembler")
+
+		case "interactive":
+			tryGrant("interactive")
+
+		case "asan":
+			tryGrant("sanitized")
+
+		case "segfault_king":
+			tryGrant("segfault_king")
+
+		case "into_the_loop":
+			tryGrant("into_the_loop")
+
+		case "beer":
+			tryGrant("beer")
+
+		case "konami":
+			tryGrant("konami")
+		}
+	}
+}
+
+func starsStyle(stars int) string {
+	switch stars {
+	case 3:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGold)).Bold(true).Render("★★★")
+	case 2:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAmber)).Render("★★☆")
+	case 1:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Render("★☆☆")
+	default:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("○  ")
+	}
+}
+
+// renderKey is the single source of truth for how a keyboard shortcut looks
+// anywhere in the TUI. Both help bars and the keybindings overlay call this.
+func renderKey(k string) string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorBody)).
+		Background(lipgloss.Color(ColorBorder)).
+		Bold(true).
+		Padding(0, 1).
+		Render(k)
+}
+
+func helpBar(items ...string) string {
+	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
+
+	var parts []string
+	for _, item := range items {
+		idx := strings.Index(item, " ")
+		if idx > 0 {
+			parts = append(parts, renderKey(item[:idx])+" "+descStyle.Render(item[idx+1:]))
+		} else {
+			parts = append(parts, descStyle.Render(item))
+		}
+	}
+	return strings.Join(parts, "  ")
+}
+
+func bold(s string) string {
+	return lipgloss.NewStyle().Bold(true).Render(s)
+}
+
+// rtlAlignBlock right-aligns every line of s to width when the caller is in
+// an RTL locale. Each line is padded independently so ANSI styles are preserved.
+func rtlAlignBlock(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = lipgloss.NewStyle().Width(width).Align(lipgloss.Right).Render(line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func dim(s string) string {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(ColorFaded)).Render(s)
+}
+
+func titleStyle(s string) string {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(ColorAccent)).
+		Render(s)
+}
+
+func codeStyle(s string) string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		Render(s)
+}

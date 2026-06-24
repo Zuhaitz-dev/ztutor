@@ -1,0 +1,31 @@
+# config/credits.yaml
+#
+# Edit this file to populate the Credits screen.
+# ztutor reads it at runtime — no restart required... actually a restart is
+# needed since it is read at screen-open time, not at startup. Just open/close
+# the credits screen after saving.
+#
+# All sections are optional. Remove a section or leave it empty to hide it.
+#
+# Tiers (displayed in order):
+#   archon    — top tier, names displayed one per row with star decoration
+#   patron    — mid tier, names displayed two per row
+#   supporter — entry tier, names displayed three per row
+#
+# For contributors, 'github' is optional.
+
+archon:
+  # - name: "Firstname Lastname"
+
+patron:
+  # - name: "Firstname Lastname"
+  # - name: "Firstname Lastname"
+  #   github: "githubhandle"
+
+supporter:
+  # - name: "Name A"
+  # - name: "Name B"
+
+contributors:
+  # - name: "Firstname Lastname"
+  #   github: "githubhandle"

@@ -1,0 +1,292 @@
+ZTUTOR COMMERCIAL LICENSE AGREEMENT
+Version 1.0
+
+Copyright (c) 2026 Zuhaitz Mendez Fernandez de Aranguiz
+Contact: zuhaitz.zechhub@gmail.com
+
+─────────────────────────────────────────────────────────────────────────────
+
+PREAMBLE
+
+ztutor is dual-licensed software. This file governs the Commercial License.
+For open-source use under the GNU Affero General Public License v3.0 (AGPL-3.0),
+see the LICENSE file in this repository.
+
+A Commercial License is required when any of the following apply:
+
+  (a) You deploy ztutor or ztutord in a production environment as part of a
+      commercial product, service, or internal tool for which you receive
+      payment or business value.
+
+  (b) You modify ztutor or ztutord and do not wish to publish your
+      modifications under the AGPL-3.0.
+
+  (c) You offer ztutor or ztutord as a networked service (SaaS, LMS, hosted
+      platform, or similar) to end users, whether or not you charge for it,
+      and you do not wish to comply with the AGPL-3.0 network-use provisions
+      (Section 13).
+
+  (d) You integrate ztutor into a proprietary product and distribute it to
+      third parties without providing corresponding AGPL-3.0 source code.
+
+─────────────────────────────────────────────────────────────────────────────
+
+1. DEFINITIONS
+
+"Licensor" means Zuhaitz Mendez Fernandez de Aranguiz, the copyright holder.
+
+"Licensee" means the individual, company, or organization that has entered
+into a valid Commercial License Agreement with Licensor and paid the
+applicable license fee.
+
+"Software" means the ztutor source code, binaries, documentation, and all
+associated files made available under this repository, including ztutor
+(client) and ztutord (execution server).
+
+"Authorized Users" means the employees, contractors, and agents of Licensee
+who are permitted to use the Software under this Agreement, and whose
+permitted count is specified in the License Order.
+
+"Derivative Work" means any work that is based on, incorporates, or modifies
+the Software, in whole or in part.
+
+"Deployment" means a single running instance of the Software (or cluster of
+instances serving the same organization) accessible to Authorized Users.
+
+"Competing Product" means a product or service whose primary purpose is
+substantially similar to ztutor — that is, an SSH-native, terminal-based
+programming tutor or interactive coding education platform.
+
+─────────────────────────────────────────────────────────────────────────────
+
+2. GRANT OF LICENSE
+
+Subject to the terms of this Agreement and payment of the applicable fee,
+Licensor grants Licensee a non-exclusive, non-transferable, worldwide license
+to:
+
+  (a) Use, copy, and install the Software for Licensee's internal business
+      purposes within the scope of the License Order (number of seats,
+      deployments, or users as agreed).
+
+  (b) Modify the Software to create Derivative Works for Licensee's own
+      internal use, without any obligation to publish or disclose those
+      modifications.
+
+  (c) Deploy the Software (including ztutord) as a networked service for
+      Authorized Users without triggering the AGPL-3.0 Section 13
+      source-disclosure requirement.
+
+  (d) Use the Software in production environments, including educational
+      institutions, bootcamps, corporate training programs, and internal
+      developer platforms.
+
+─────────────────────────────────────────────────────────────────────────────
+
+3. RESTRICTIONS
+
+Licensee may NOT, under this Agreement:
+
+  (a) Sublicense, sell, resell, rent, lease, or transfer the Software or
+      this license to any third party, except as expressly permitted in
+      Section 4 (Contractors and Affiliates).
+
+  (b) Use the Software to build, operate, or contribute to a Competing
+      Product — a product that competes directly with ztutor in the market —
+      whether sold, licensed, or offered for free.
+
+  (c) Remove, alter, or obscure any copyright, trademark, or attribution
+      notices contained in the Software.
+
+  (d) Represent that Derivative Works are the original Software, or claim
+      authorship of the unmodified portions.
+
+  (e) Use the Licensor's name, logo, or trademarks to endorse or promote
+      Licensee's products or services without prior written consent.
+
+  (f) Distribute the Software or Derivative Works to third parties outside
+      Licensee's organization, except as a hosted service in which end users
+      do not receive a copy of the Software itself.
+
+  (g) Use the Software in excess of the seat count, deployment count, or
+      user limit specified in the License Order without first obtaining an
+      expanded license.
+
+  (h) Reverse engineer, decompile, or disassemble portions of the Software
+      that are provided only in binary form (if any), except to the extent
+      that applicable law expressly permits this despite this restriction.
+
+─────────────────────────────────────────────────────────────────────────────
+
+4. CONTRACTORS AND AFFILIATES
+
+  (a) Licensee may permit its contractors, consultants, and outsourcing
+      partners to use the Software solely on Licensee's behalf and solely
+      for Licensee's benefit, provided that such parties are bound by
+      confidentiality obligations at least as protective as those in this
+      Agreement and do not use the Software for their own benefit or for
+      the benefit of any other client.
+
+  (b) Licensee's majority-owned subsidiaries may use the Software under this
+      license, provided that they are named in the License Order or Licensor
+      grants written approval. Parent companies and affiliates that are not
+      subsidiaries require a separate license.
+
+  (c) In the event of a merger, acquisition, or change of control in which
+      a Competing Product's owner acquires Licensee, this license terminates
+      automatically unless Licensor provides written consent to continue.
+
+─────────────────────────────────────────────────────────────────────────────
+
+5. OWNERSHIP AND INTELLECTUAL PROPERTY
+
+  (a) The Software, including all copies and Derivative Works made by
+      Licensee, remains the intellectual property of Licensor with respect
+      to the original portions. Licensee retains ownership of its own
+      original contributions in Derivative Works, but grants Licensor a
+      perpetual, royalty-free license to those contributions if Licensee
+      elects to submit them upstream.
+
+  (b) This Agreement does not grant Licensee any rights in the Licensor's
+      trademarks, service marks, or trade names.
+
+  (c) Licensee shall not file any patent claim that reads on the Software
+      or assert patent rights against Licensor or other users of the
+      Software.
+
+─────────────────────────────────────────────────────────────────────────────
+
+6. FEES, PAYMENT, AND LICENSE ORDER
+
+  (a) The license fee, payment schedule, seat count, and permitted use
+      scope are specified in the License Order issued by Licensor to
+      Licensee. This Agreement is only effective once Licensee has paid
+      the applicable fee in full.
+
+  (b) All fees are non-refundable except where required by applicable law
+      or expressly stated in the License Order.
+
+  (c) Licensee shall maintain accurate records of all Authorized Users and
+      Deployments and shall provide such records to Licensor upon reasonable
+      written request (no more than once per calendar year) for the purpose
+      of verifying compliance.
+
+  (d) If an audit reveals that Licensee has exceeded the licensed scope,
+      Licensee shall pay the applicable overage fees within thirty (30) days
+      of the audit report, plus a remediation fee equal to 20% of the
+      underpaid amount.
+
+─────────────────────────────────────────────────────────────────────────────
+
+7. TERM AND TERMINATION
+
+  (a) This Agreement begins on the date the License Order is countersigned
+      or payment is received (whichever is earlier) and continues for the
+      term specified in the License Order. Annual licenses renew
+      automatically unless either party gives thirty (30) days' written
+      notice of non-renewal.
+
+  (b) Licensor may terminate this Agreement immediately and without notice
+      if Licensee:
+        (i)   breaches Section 3 (Restrictions);
+        (ii)  fails to pay fees within thirty (30) days of the due date;
+        (iii) becomes insolvent, makes an assignment for the benefit of
+              creditors, or enters bankruptcy or liquidation proceedings.
+
+  (c) Licensor may terminate this Agreement for any other material breach
+      that is not cured within thirty (30) days of written notice.
+
+  (d) Upon termination, Licensee must immediately cease all use of the
+      Software, destroy all copies in its possession or control (including
+      Derivative Works that incorporate the original Software), and certify
+      such destruction in writing to Licensor within fourteen (14) days.
+
+  (e) Sections 3, 5, 7(d), 8, 9, 10, and 11 survive termination.
+
+─────────────────────────────────────────────────────────────────────────────
+
+8. DISCLAIMER OF WARRANTIES
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. LICENSOR DOES
+NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE, UNINTERRUPTED, OR FREE OF
+SECURITY VULNERABILITIES. LICENSEE ASSUMES ALL RISK ASSOCIATED WITH THE USE
+OF THE SOFTWARE.
+
+─────────────────────────────────────────────────────────────────────────────
+
+9. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL
+LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
+EXEMPLARY, OR PUNITIVE DAMAGES, INCLUDING LOSS OF PROFITS, LOSS OF DATA,
+BUSINESS INTERRUPTION, OR COST OF SUBSTITUTE GOODS OR SERVICES, ARISING OUT
+OF OR IN CONNECTION WITH THIS AGREEMENT OR THE USE OF THE SOFTWARE, EVEN IF
+LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+LICENSOR'S TOTAL CUMULATIVE LIABILITY ARISING OUT OF OR IN CONNECTION WITH
+THIS AGREEMENT SHALL NOT EXCEED THE GREATER OF (a) THE TOTAL LICENSE FEES
+PAID BY LICENSEE TO LICENSOR IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM,
+OR (b) ONE HUNDRED EUROS (€100).
+
+─────────────────────────────────────────────────────────────────────────────
+
+10. INDEMNIFICATION
+
+Licensee shall defend, indemnify, and hold harmless Licensor from and against
+any claims, liabilities, damages, fines, penalties, costs, and expenses
+(including reasonable legal fees) arising out of or related to:
+
+  (a) Licensee's use of the Software in violation of this Agreement;
+  (b) Licensee's Derivative Works;
+  (c) Any claim that Licensee's products or services infringe the
+      intellectual property rights of a third party.
+
+─────────────────────────────────────────────────────────────────────────────
+
+11. GENERAL PROVISIONS
+
+  (a) Governing Law. This Agreement is governed by the laws of Spain,
+      without regard to its conflict-of-law provisions. The parties consent
+      to the exclusive jurisdiction of the courts of the Basque Country,
+      Spain, for any dispute arising out of this Agreement.
+
+  (b) Entire Agreement. This Agreement (together with the License Order)
+      constitutes the entire agreement between the parties with respect to
+      its subject matter and supersedes all prior or contemporaneous
+      understandings, whether written or oral.
+
+  (c) Amendments. No amendment to this Agreement is effective unless in
+      writing and signed by both parties.
+
+  (d) Waiver. Failure by either party to enforce any provision of this
+      Agreement shall not constitute a waiver of future enforcement.
+
+  (e) Severability. If any provision of this Agreement is held invalid or
+      unenforceable, the remaining provisions shall continue in full force.
+
+  (f) No Agency. Nothing in this Agreement creates a partnership, joint
+      venture, employment, or agency relationship between the parties.
+
+  (g) Notices. Notices under this Agreement must be sent by email to the
+      addresses specified in the License Order, or to
+      zuhaitz.zechhub@gmail.com for Licensor, and are deemed received upon
+      confirmation of delivery.
+
+  (h) Force Majeure. Neither party is liable for delays or failures caused
+      by circumstances beyond its reasonable control, provided it promptly
+      notifies the other party.
+
+  (i) Export Compliance. Licensee shall comply with all applicable export
+      control laws and regulations and shall not export or re-export the
+      Software to any country, entity, or person prohibited by such laws.
+
+─────────────────────────────────────────────────────────────────────────────
+
+TO OBTAIN A COMMERCIAL LICENSE, CONTACT:
+
+  Zuhaitz Mendez Fernandez de Aranguiz
+  zuhaitz.zechhub@gmail.com
+
+─────────────────────────────────────────────────────────────────────────────

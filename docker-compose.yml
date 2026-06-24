@@ -1,0 +1,32 @@
+services:
+  ztutor:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: ztutor:latest
+    restart: unless-stopped
+    ports:
+      - "2222:2222"
+    volumes:
+      # Persistent state: SSH host key, SQLite DB, license file.
+      - ztutor-data:/data
+      # Course content — edit on the host, picked up on next restart.
+      - ./courses:/courses:ro
+    environment:
+      # Required: hex-encoded Ed25519 public key used to verify license files.
+      ZTUTOR_LICENSE_PUBKEY: "${ZTUTOR_LICENSE_PUBKEY}"
+      # Optional: absolute path inside the container. Default: /data/license.key
+      # ZTUTOR_LICENSE_FILE: /data/license.key
+      # Optional: max SSH connections (default 200).
+      # Set via ztutor.json mounted into /data, or use the env var below.
+    # Uncomment to mount a custom ztutor.json config:
+    # configs:
+    #   - source: ztutor_config
+    #     target: /data/ztutor.json
+
+volumes:
+  ztutor-data:
+
+# configs:
+#   ztutor_config:
+#     file: ./ztutor.json

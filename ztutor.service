@@ -1,0 +1,33 @@
+[Unit]
+Description=ztutor SSH programming tutor
+After=network.target
+Documentation=https://github.com/zuhaitz/ztutor
+
+[Service]
+Type=simple
+User=ztutor
+Group=ztutor
+ExecStart=/usr/local/bin/ztutord
+WorkingDirectory=/opt/ztutor
+
+# Data and courses directories
+Environment=ZTUTOR_DATA_DIR=/var/lib/ztutor
+Environment=ZTUTOR_COURSES_DIR=/opt/ztutor/courses
+
+# License verification public key (replace with your actual key)
+# EnvironmentFile=/etc/ztutor/env
+
+Restart=on-failure
+RestartSec=5
+
+# Harden the service
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ztutor
+ProtectHome=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
