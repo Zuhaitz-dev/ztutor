@@ -2,6 +2,7 @@ VERSION ?= dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
+GOFLAGS := -buildvcs=false
 LDFLAGS := -X ztutor/internal/version.Version=$(VERSION) \
            -X ztutor/internal/version.Commit=$(COMMIT) \
            -X ztutor/internal/version.BuildDate=$(DATE)
@@ -11,16 +12,16 @@ LDFLAGS := -X ztutor/internal/version.Version=$(VERSION) \
 build: build-client build-server
 
 build-client:
-	go build -ldflags "$(LDFLAGS)" -o ztutor ./cmd/ztutor/
+	go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutor ./cmd/ztutor/
 
 build-server:
-	go build -ldflags "$(LDFLAGS)" -o ztutord ./cmd/ztutord/
+	go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutord ./cmd/ztutord/
 
 build-licensegen:
-	go build -o licensegen ./cmd/licensegen/
+	go build $(GOFLAGS) -o licensegen ./cmd/licensegen/
 
 build-coursepack:
-	go build -o coursepack ./cmd/coursepack/
+	go build $(GOFLAGS) -o coursepack ./cmd/coursepack/
 
 build-full: build-client build-server build-licensegen build-coursepack
 
