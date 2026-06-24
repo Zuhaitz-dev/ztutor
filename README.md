@@ -280,4 +280,4 @@ ztutor/
 
 AGPL-3.0 for open-source use. See [LICENSE](LICENSE).
 
-Commercial licenses are available for organizations that need private deployments, proprietary modifications, or hosted service use without AGPL obligations. See [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL) or contact mendezpoli86@gmail.com.
+Commercial licenses are available for organizations that need private deployments, proprietary modifications, or hosted service use without AGPL obligations. See [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL) or contact zuhaitz.zechhub@gmail.com.
