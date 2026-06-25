@@ -1,0 +1,5 @@
+print() en Python añade el salto de línea automáticamente — no necesitas \n.
+---
+Reemplaza el texto dentro de print() con "hello world". Elimina la llamada a input() si la hay.
+---
+La solución es: print("hello world")

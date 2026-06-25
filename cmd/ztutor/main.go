@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,9 +20,15 @@ import (
 )
 
 func main() {
+	verbose := flag.Bool("v", false, "enable verbose debug logging")
+	flag.Parse()
+	logutil.SetVerbose(*verbose)
+
 	logutil.Info("%s", version.String())
+	logutil.Debug("verbose logging enabled")
 
 	dataDir := envOrDefault("ZTUTOR_DATA_DIR", defaultDataDir())
+	logutil.Debug("data dir: %s", dataDir)
 	if dataDir != "." {
 		if err := os.MkdirAll(dataDir, 0700); err != nil {
 			logutil.Warn("cannot create data dir %s: %v", dataDir, err)
@@ -29,6 +36,7 @@ func main() {
 	}
 
 	dbPath := envOrDefault("ZTUTOR_DB", filepath.Join(dataDir, "ztutor.db"))
+	logutil.Debug("db path: %s", dbPath)
 	database, err := db.Open(dbPath)
 	if err != nil {
 		logutil.Fatal("db: %v", err)
@@ -73,6 +81,8 @@ func main() {
 	if lessonsDir == "" {
 		lessonsDir = "./courses" // modern default: courses dir contains the lessons
 	}
+	logutil.Debug("courses dir: %s", coursesDir)
+	logutil.Debug("lessons dir: %s", lessonsDir)
 
 	width, height := 80, 24
 	if w, h, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 && h > 0 {

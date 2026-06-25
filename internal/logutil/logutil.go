@@ -2,7 +2,7 @@
 // It wraps log/slog with severity-leveled helpers that accept
 // printf-style format strings for minimal migration friction.
 //
-// Set LOG_LEVEL=debug to enable debug messages; default is info.
+// Set LOG_LEVEL=debug or pass -v to enable debug messages; default is info.
 package logutil
 
 import (
@@ -12,14 +12,24 @@ import (
 	"strings"
 )
 
+var currentLevel = new(slog.LevelVar)
+
 func init() {
 	level := slog.LevelInfo
 	if v := os.Getenv("LOG_LEVEL"); strings.EqualFold(v, "debug") {
 		level = slog.LevelDebug
 	}
+	currentLevel.Set(level)
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: level,
+		Level: currentLevel,
 	})))
+}
+
+// SetVerbose enables debug logging when verbose is true.
+func SetVerbose(verbose bool) {
+	if verbose {
+		currentLevel.Set(slog.LevelDebug)
+	}
 }
 
 // Debug logs at debug level (shown only when LOG_LEVEL=debug).

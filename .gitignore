@@ -23,8 +23,11 @@ test_keys.json
 # Encrypted course packages (binary blobs, not for VCS)
 *.course
 
-# Courses are content assets, distributed separately from the platform
-courses/
+# Courses are content assets, distributed separately from the platform.
+# The starter course is bundled so a fresh install has one usable lesson.
+courses/*
+!courses/ztutor-starter/
+!courses/ztutor-starter/**
 
 # Build artifacts
 *.test

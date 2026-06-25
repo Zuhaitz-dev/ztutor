@@ -1,0 +1,5 @@
+Output matching is case-sensitive: "Hello" and "hello" are different strings.
+---
+Only the text inside the quotes in printf needs to change. Keep the \n at the end.
+---
+The exact fix is: printf("hello world\n");

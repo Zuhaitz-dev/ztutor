@@ -1,0 +1,5 @@
+println! es una macro, no una función — el ! es parte de su nombre.
+---
+println! añade el salto de línea automáticamente. No necesitas \n.
+---
+La solución es: println!("hello world");

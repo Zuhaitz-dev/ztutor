@@ -1,0 +1,5 @@
+Python's print() adds a newline automatically — no \n needed.
+---
+Replace the string inside print() with "hello world". Remove the input() call if it's there.
+---
+The fix is: print("hello world")

@@ -1,0 +1,5 @@
+println! is a macro, not a function — the ! is part of its name.
+---
+println! adds a newline automatically. No \n needed.
+---
+The fix is: println!("hello world");

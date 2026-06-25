@@ -74,6 +74,25 @@ func TestHandleConn_UnknownOp(t *testing.T) {
 	<-done
 }
 
+func TestHandleConn_Ping(t *testing.T) {
+	server, client := mustPair(t)
+	done := make(chan struct{})
+	go func() {
+		handleConn(server)
+		close(done)
+	}()
+
+	req := ExecRequest{Op: OpPing}
+	json.NewEncoder(client).Encode(req)
+	var resp ExecResponse
+	json.NewDecoder(client).Decode(&resp)
+	if resp.Op != OpPing || resp.Error != "" {
+		t.Fatalf("ping response = %+v, want successful ping", resp)
+	}
+	client.Close()
+	<-done
+}
+
 func TestDispatch_RunSuccess(t *testing.T) {
 	// Only test dispatch with languages that are available on this system.
 	lang := sandbox.GetLanguage("c")

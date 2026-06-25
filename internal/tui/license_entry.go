@@ -37,6 +37,15 @@ func NewLicenseEntryScreen(loc *i18n.Locale, w, h int) *licenseEntryScreen {
 
 func (s *licenseEntryScreen) Init() tea.Cmd { return textinput.Blink }
 
+func (s *licenseEntryScreen) SetLocale(loc *i18n.Locale) {
+	s.loc = loc
+	s.form.title = loc.T("license_entry.title")
+	s.form.prompt = loc.T("license_entry.prompt")
+	s.form.help = loc.T("license_entry.save")
+	s.form.input.Placeholder = loc.T("license_entry.placeholder")
+	s.form.SetMessage("", false)
+}
+
 func (s *licenseEntryScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:

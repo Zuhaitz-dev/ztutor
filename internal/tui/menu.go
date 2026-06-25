@@ -258,14 +258,101 @@ func langBadge(lang string) string {
 	return lc.Render("[" + strings.ToUpper(lang) + "]")
 }
 
+func programmingLangLabel(lang string) string {
+	if l := sandbox.GetLanguage(lang); l != nil {
+		return l.DisplayName()
+	}
+	lang = strings.TrimSpace(lang)
+	if lang == "" {
+		return ""
+	}
+	return strings.ToUpper(lang[:1]) + lang[1:]
+}
+
+func langLabels(langs []string, transform func(string) string) []string {
+	if len(langs) == 0 {
+		return nil
+	}
+	labels := make([]string, 0, len(langs))
+	for _, lang := range langs {
+		label := strings.TrimSpace(lang)
+		if transform != nil {
+			label = transform(label)
+		}
+		if label != "" {
+			labels = append(labels, label)
+		}
+	}
+	return labels
+}
+
+func renderBadgeLabels(labels []string, color lipgloss.Color, padded bool, compact bool) string {
+	if len(labels) == 0 {
+		return ""
+	}
+	joiner := "·"
+	body := ""
+	if compact && len(labels) > 1 {
+		body = fmt.Sprintf("%s +%d", labels[0], len(labels)-1)
+	} else {
+		if padded {
+			joiner = " · "
+		}
+		body = strings.Join(labels, joiner)
+	}
+	if padded {
+		body = " " + body + " "
+	}
+	s := lipgloss.NewStyle().Foreground(color)
+	return s.Render("{" + body + "}")
+}
+
 // uiLangBadges renders the available UI translation languages for a course as
 // a compact muted badge, e.g. {en·es·ar}.  Returns empty string when langs is nil.
 func uiLangBadges(langs []string) string {
-	if len(langs) == 0 {
+	return renderBadgeLabels(langLabels(langs, nil), lipgloss.Color("244"), false, false)
+}
+
+func programmingLangBadges(langs []string) string {
+	return renderBadgeLabels(langLabels(langs, programmingLangLabel), lipgloss.Color(ColorAccent), true, false)
+}
+
+func compactProgrammingLangBadges(langs []string) string {
+	return renderBadgeLabels(langLabels(langs, programmingLangLabel), lipgloss.Color(ColorAccent), true, true)
+}
+
+func compactUILangBadges(langs []string) string {
+	return renderBadgeLabels(langLabels(langs, nil), lipgloss.Color("244"), false, true)
+}
+
+type courseLineSegment struct {
+	variants []string
+	index    int
+}
+
+func (s *courseLineSegment) current() string {
+	if len(s.variants) == 0 || s.index >= len(s.variants) {
 		return ""
 	}
-	s := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	return s.Render("{" + strings.Join(langs, "·") + "}")
+	return s.variants[s.index]
+}
+
+func (s *courseLineSegment) degrade() bool {
+	if s.index+1 >= len(s.variants) {
+		return false
+	}
+	s.index++
+	return true
+}
+
+func joinCourseLineParts(parts ...string) string {
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if strings.TrimSpace(part) != "" {
+			out = append(out, part)
+		}
+	}
+	return strings.Join(out, "  ")
 }
 
 func sectionCounts(c *lesson.Course) (lessons, interviews, challenges int) {
@@ -658,8 +745,8 @@ func (m *MenuScreen) enterCourse(c lesson.Course) (tea.Model, tea.Cmd) {
 		m.compatLine = m.loc.T("menu.course_no_sections")
 		return m, nil
 	}
-	// First visit: fire a course-specific intro before entering the lesson list.
-	if m.checkCourseIntro != nil && m.checkCourseIntro(c.ID) {
+	// First visit: fire a course-specific intro only when the course opted in.
+	if len(c.CourseIntro) > 0 && m.checkCourseIntro != nil && m.checkCourseIntro(c.ID) {
 		return m, backCmd(showCourseIntroMsg{course: c})
 	}
 	m.enterCourseDirectly(c)
@@ -1077,23 +1164,16 @@ func (m *MenuScreen) renderCourseView(b *strings.Builder) string {
 			b.WriteString(alignR(dim(m.loc.T("menu.no_courses"))))
 		}
 		b.WriteString("\n\n")
-		b.WriteString(m.renderHelpBar())
+		footer := m.renderFooter(m.Width)
+		pad := m.Height - lipgloss.Height(b.String()) - lipgloss.Height(footer)
+		if pad > 0 {
+			b.WriteString(strings.Repeat("\n", pad))
+		}
+		b.WriteString(footer)
 		return b.String()
 	}
 
-	arrow := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent)).Render("❯")
-	if rtl {
-		arrow = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent)).Render("❮")
-	}
-	wide := m.Width >= 96
-	if rtl {
-		wide = false
-	}
-	leftW := 56
 	panelW := m.Width
-	if wide {
-		panelW = leftW
-	}
 
 	align := lipgloss.Left
 	if rtl {
@@ -1102,20 +1182,16 @@ func (m *MenuScreen) renderCourseView(b *strings.Builder) string {
 	itemSt, selSt := menuStyles(panelW, align)
 
 	for i := m.courseOffset; i < len(courses) && i < m.courseOffset+ph; i++ {
-		line := m.renderCourseLine(courses[i])
+		line := m.renderCourseLine(courses[i], panelW)
 		if i == m.courseCursor {
 			if rtl {
-				b.WriteString(selSt.Render(line + " " + arrow))
-			} else if wide {
-				b.WriteString(selSt.Render(" " + arrow + " " + line))
+				b.WriteString(selSt.Render(line))
 			} else {
 				b.WriteString(selSt.Render(line))
 			}
 		} else {
 			if rtl {
 				b.WriteString(itemSt.Render(line))
-			} else if wide {
-				b.WriteString(itemSt.Render("   " + line))
 			} else {
 				b.WriteString(itemSt.Render(line))
 			}
@@ -1124,11 +1200,7 @@ func (m *MenuScreen) renderCourseView(b *strings.Builder) string {
 	}
 	b.WriteString("\n")
 
-	footerW := leftW
-	if rtl {
-		footerW = m.Width
-	}
-	footer := m.renderFooter(footerW)
+	footer := m.renderFooter(m.Width)
 	pad := m.Height - lipgloss.Height(b.String()) - lipgloss.Height(footer)
 	if pad > 0 {
 		b.WriteString(strings.Repeat("\n", pad))
@@ -1137,7 +1209,7 @@ func (m *MenuScreen) renderCourseView(b *strings.Builder) string {
 	return b.String()
 }
 
-func (m *MenuScreen) renderCourseLine(c lesson.Course) string {
+func (m *MenuScreen) renderCourseLine(c lesson.Course, maxWidth int) string {
 	nl, ni, nc := sectionCounts(&c)
 	T := m.loc.T
 
@@ -1171,29 +1243,93 @@ func (m *MenuScreen) renderCourseLine(c lesson.Course) string {
 			tags = append(tags, lipgloss.NewStyle().Foreground(lipgloss.Color(ColorCyan)).Render(T("menu.tag_encrypted")))
 		}
 	}
-	tagStr := ""
-	if len(tags) > 0 {
-		tagStr = "  " + strings.Join(tags, " ")
-	}
+	tagStr := strings.Join(tags, " ")
 
 	done, total := courseProgressCounts(&c, m.progress)
 	progressStr := ""
 	if total > 0 && !courseLocked {
 		if done == total {
-			progressStr = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Bold(true).Render(fmt.Sprintf("%d/%d", done, total))
+			progressStr = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Bold(true).Render(fmt.Sprintf("%d/%d", done, total))
 		} else if done > 0 {
-			progressStr = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent)).Render(fmt.Sprintf("%d/%d", done, total))
+			progressStr = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent)).Render(fmt.Sprintf("%d/%d", done, total))
 		} else {
-			progressStr = "  " + dim(fmt.Sprintf("0/%d", total))
+			progressStr = dim(fmt.Sprintf("0/%d", total))
 		}
 	}
 
-	title := lipgloss.NewStyle().Bold(true).Render(c.Title)
-	lang := langBadge(c.Language)
-	if ui := uiLangBadges(c.UILanguages); ui != "" {
-		lang += " " + ui
+	progLangs := c.ProgrammingLanguages
+	if len(progLangs) == 0 && c.Language != "" {
+		progLangs = []string{c.Language}
 	}
-	return fmt.Sprintf("%s  %s  %s%s%s", title, lang, counts, progressStr, tagStr)
+	segments := map[string]*courseLineSegment{
+		"prog": {
+			variants: []string{
+				programmingLangBadges(progLangs),
+				compactProgrammingLangBadges(progLangs),
+				"",
+			},
+		},
+		"ui": {
+			variants: []string{
+				uiLangBadges(c.UILanguages),
+				compactUILangBadges(c.UILanguages),
+				"",
+			},
+		},
+		"counts":   {variants: []string{counts, ""}},
+		"progress": {variants: []string{progressStr, ""}},
+		"tags":     {variants: []string{tagStr, ""}},
+	}
+	degradeOrder := []string{"counts", "tags", "progress", "ui", "prog"}
+	titleText := c.Title
+	titleStyle := lipgloss.NewStyle().Bold(true)
+	fullTitleWidth := lipgloss.Width(titleText)
+	minTitleWidth := min(12, fullTitleWidth)
+	if minTitleWidth < 1 {
+		minTitleWidth = 1
+	}
+	if maxWidth <= 0 {
+		return joinCourseLineParts(
+			titleStyle.Render(titleText),
+			segments["prog"].current(),
+			segments["ui"].current(),
+			segments["counts"].current(),
+			segments["progress"].current(),
+			segments["tags"].current(),
+		)
+	}
+	for {
+		suffix := joinCourseLineParts(
+			segments["prog"].current(),
+			segments["ui"].current(),
+			segments["counts"].current(),
+			segments["progress"].current(),
+			segments["tags"].current(),
+		)
+		availableTitle := maxWidth
+		if suffix != "" {
+			availableTitle -= lipgloss.Width(suffix) + 2
+		}
+		if availableTitle >= fullTitleWidth {
+			return joinCourseLineParts(titleStyle.Render(titleText), suffix)
+		}
+		if availableTitle >= minTitleWidth {
+			return joinCourseLineParts(titleStyle.Render(truncRunes(titleText, availableTitle)), suffix)
+		}
+		degraded := false
+		for _, key := range degradeOrder {
+			if segments[key].degrade() {
+				degraded = true
+				break
+			}
+		}
+		if !degraded {
+			if availableTitle < 1 {
+				availableTitle = 1
+			}
+			return joinCourseLineParts(titleStyle.Render(truncRunes(titleText, availableTitle)), suffix)
+		}
+	}
 }
 
 // ── Level 2: Lesson / Challenge View ──────────────────────────────────────────

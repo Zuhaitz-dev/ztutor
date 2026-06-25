@@ -36,12 +36,13 @@ type Course struct {
 	TotalLessons    int
 	TotalChallenges int
 
-	SourceExtension    string
-	SyntaxHighlighting string
-	AvailableTools     []string
-	DefaultWidgets     []string
-	CourseIntro        []string
-	EnrollmentRequired bool
+	SourceExtension      string
+	SyntaxHighlighting   string
+	AvailableTools       []string
+	DefaultWidgets       []string
+	CourseIntro          []string
+	EnrollmentRequired   bool
+	ProgrammingLanguages []string
 
 	// Encrypted is true when this course was loaded from an encrypted .course
 	// file. The TUI shows a distinct badge for encrypted courses.
@@ -75,10 +76,11 @@ type courseManifest struct {
 		Required bool `yaml:"required"`
 	} `yaml:"enrollment"`
 
-	UILanguages    []string          `yaml:"ui_languages,omitempty"`
-	DefaultWidgets []string          `yaml:"default_widgets,omitempty"`
-	CourseIntro    []string          `yaml:"course_intro,omitempty"`
-	Sections       []sectionManifest `yaml:"sections"`
+	UILanguages     []string            `yaml:"ui_languages,omitempty"`
+	DefaultWidgets  []string            `yaml:"default_widgets,omitempty"`
+	CourseIntro     []string            `yaml:"course_intro,omitempty"`
+	CourseIntroI18N map[string][]string `yaml:"course_intro_i18n,omitempty"`
+	Sections        []sectionManifest   `yaml:"sections"`
 
 	Toolchain struct {
 		SourceExtension    string   `yaml:"source_extension,omitempty"`
@@ -127,6 +129,9 @@ func LoadCourseLang(courseDir, lang string) (Course, error) {
 	if manifestLoaded {
 		c.DefaultWidgets = m.DefaultWidgets
 		c.CourseIntro = m.CourseIntro
+		if localized := m.CourseIntroI18N[lang]; len(localized) > 0 {
+			c.CourseIntro = localized
+		}
 		for _, sm := range m.Sections {
 			s := Section{
 				ID:       sm.ID,
@@ -166,6 +171,17 @@ func LoadCourseLang(courseDir, lang string) (Course, error) {
 	}
 
 	// Compute aggregates and apply language info.
+	var courseLangs []string
+	seenLangs := make(map[string]bool)
+	addLang := func(lang string) {
+		lang = strings.ToLower(strings.TrimSpace(lang))
+		if lang == "" || seenLangs[lang] {
+			return
+		}
+		seenLangs[lang] = true
+		courseLangs = append(courseLangs, lang)
+	}
+	addLang(c.Language)
 	for i := range c.Sections {
 		s := &c.Sections[i]
 		if s.Type == "" {
@@ -185,8 +201,10 @@ func LoadCourseLang(courseDir, lang string) (Course, error) {
 			if len(l.EnabledWidgets) == 0 && len(c.DefaultWidgets) > 0 {
 				l.EnabledWidgets = c.DefaultWidgets
 			}
+			addLang(l.Language)
 		}
 	}
+	c.ProgrammingLanguages = courseLangs
 
 	return c, nil
 }

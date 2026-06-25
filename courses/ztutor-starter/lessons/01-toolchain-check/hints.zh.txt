@@ -1,0 +1,5 @@
+输出匹配区分大小写："Hello" 和 "hello" 是不同的字符串。
+---
+只需修改 printf 引号内的文本，保留末尾的 \n。
+---
+完整的修改是：printf("hello world\n");

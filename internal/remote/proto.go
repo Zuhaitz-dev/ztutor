@@ -6,6 +6,7 @@ package remote
 
 // Op constants for ExecRequest.Op.
 const (
+	OpPing   = "ping"
 	OpRun    = "run"
 	OpASAN   = "run_asan"
 	OpDebug  = "compile_debug"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
+	"flag"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -35,10 +36,17 @@ func defaultDataDir() string {
 }
 
 func main() {
+	verbose := flag.Bool("v", false, "enable verbose debug logging")
+	flag.Parse()
+	logutil.SetVerbose(*verbose)
+
 	logutil.Info("%s", version.String())
+	logutil.Debug("verbose logging enabled")
 
 	dataDir := envOrDefault("ZTUTOR_DATA_DIR", defaultDataDir())
 	configPath := envOrDefault("ZTUTOR_CONFIG", "./ztutor.json")
+	logutil.Debug("data dir: %s", dataDir)
+	logutil.Debug("config path: %s", configPath)
 
 	if dataDir != "." {
 		if err := os.MkdirAll(dataDir, 0700); err != nil {
@@ -75,6 +83,11 @@ func main() {
 	if licenseFile == "" {
 		licenseFile = filepath.Join(dataDir, "license.key")
 	}
+	logutil.Debug("host key: %s", hostKey)
+	logutil.Debug("db path: %s", dbPath)
+	logutil.Debug("courses dir: %s", coursesDir)
+	logutil.Debug("lessons dir: %s", lessonsDir)
+	logutil.Debug("license file: %s", licenseFile)
 
 	lic, _ := license.Check(licenseFile)
 
@@ -112,6 +125,7 @@ func main() {
 	}
 
 	if cfg.Exec.Addr != "" {
+		logutil.Debug("exec server enabled at %s (tls: %v, max_conns: %d)", cfg.Exec.Addr, cfg.Exec.TLS, cfg.Exec.MaxConns)
 		go func() {
 			if err := remote.ListenAndServeTLS(cfg.Exec.Addr, cfg.Exec.TLS, cfg.Exec.CertFile, cfg.Exec.KeyFile, cfg.Exec.MaxConns); err != nil {
 				logutil.Error("exec server: %v", err)

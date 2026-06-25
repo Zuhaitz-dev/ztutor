@@ -281,6 +281,12 @@ remote_config.tls_on: "TLS: on"
 remote_config.tls_off: "TLS: off"
 remote_config.tls_hint: "(ctrl+t to toggle)"
 remote_config.save: "tab next field  enter save  esc back"
+remote_config.wait: "checking connection..."
+remote_config.wait_help: "please wait"
+remote_config.continue: "enter continue  esc back"
+remote_config.ok: "Connection OK — remote execution is enabled."
+remote_config.local_ok: "Remote execution disabled — using local tools."
+remote_config.failed: "Connection failed — %v"
 
 # License entry screen
 license_entry.title: "License Key"

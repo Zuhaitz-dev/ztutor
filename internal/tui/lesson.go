@@ -83,15 +83,18 @@ func (ls *LessonScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (ls *LessonScreen) View() string {
+	rtl := ls.loc.IsRTL()
 	var b strings.Builder
 
 	// Title + company tags (interview mode).
+	// Build the title line then right-align it independently in RTL so that
+	// the glamour viewport below (which has its own layout) is not affected.
 	titleSt := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent))
-	b.WriteString(titleSt.Render(ls.lesson.Title))
+	titleLine := titleSt.Render(ls.lesson.Title)
 
 	if ls.lesson.IsPremium {
 		premSt := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAmber)).Bold(true)
-		b.WriteString("  " + premSt.Render(ls.loc.T("lesson.premium_badge")))
+		titleLine += "  " + premSt.Render(ls.loc.T("lesson.premium_badge"))
 	}
 
 	if len(ls.lesson.Companies) > 0 {
@@ -99,13 +102,13 @@ func (ls *LessonScreen) View() string {
 			Foreground(lipgloss.Color(ColorHex)).
 			Background(lipgloss.Color(ColorBG)).
 			Padding(0, 1)
-		b.WriteString("  ")
 		tags := make([]string, len(ls.lesson.Companies))
 		for i, c := range ls.lesson.Companies {
 			tags[i] = tagSt.Render(c)
 		}
-		b.WriteString(strings.Join(tags, " "))
+		titleLine += "  " + strings.Join(tags, " ")
 	}
+	b.WriteString(rtlWrap(rtl, titleLine, ls.Width))
 	b.WriteString("\n")
 
 	// Difficulty + tags line (shown when present).
@@ -118,14 +121,18 @@ func (ls *LessonScreen) View() string {
 		if len(ls.lesson.Tags) > 0 {
 			parts = append(parts, dim(strings.Join(ls.lesson.Tags, "  ")))
 		}
-		b.WriteString(strings.Join(parts, "  "))
+		b.WriteString(rtlWrap(rtl, strings.Join(parts, "  "), ls.Width))
 		b.WriteString("\n")
 	}
 
+	// Glamour-rendered content. Do NOT apply rtlWrap here: glamour manages its
+	// own layout (indentation, code-block borders, word-wrap) and right-aligning
+	// it line-by-line breaks those structures. Arabic text inside glamour renders
+	// correctly at the terminal's bidi layer even without explicit right-alignment.
 	b.WriteString(ls.viewport.View())
 	b.WriteString("\n")
 
-	// Help bar.
+	// Help bar — right-align independently in RTL.
 	T := ls.loc.T
 	items := []string{T("lesson.help.scroll"), T("lesson.help.top_end")}
 	if ls.lesson.Answer != "" {
@@ -141,10 +148,9 @@ func (ls *LessonScreen) View() string {
 	items = append(items, T("help.q_back"))
 	pct := int(ls.viewport.ScrollPercent() * 100)
 	items = append(items, fmt.Sprintf("%d%%", pct))
-	b.WriteString(helpBar(items...))
+	b.WriteString(rtlWrap(rtl, helpBar(items...), ls.Width))
 
-	result := b.String()
-	return rtlWrap(ls.loc.IsRTL(), result, ls.Width)
+	return b.String()
 }
 
 func (ls *LessonScreen) renderContent() string {

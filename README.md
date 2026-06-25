@@ -26,6 +26,11 @@ ssh yourname@localhost -p 2222
 
 Paste the setup token when prompted to create the first account.
 
+ztutor includes a small starter course with hello world lessons in multiple programming languages.
+Full course content can still be distributed separately. If `courses/` is empty
+or not mounted, the app starts and shows an empty course menu; add course
+directories or `.course` packages to make lessons available.
+
 ## Deployment
 
 ### Docker
@@ -37,6 +42,10 @@ docker compose up -d
 ```
 
 Students connect with: `ssh username@yourhost -p 2222`
+
+The Docker service mounts `./courses` into the container as read-only course
+content. A fresh checkout includes `courses/ztutor-starter`; keep that directory
+or replace the mount with the course distribution path for your deployment.
 
 ### systemd
 
@@ -81,7 +90,11 @@ Environment variables:
 | `ZTUTOR_DATA_DIR` | Base directory for the database, host key, and license file |
 | `ZTUTOR_CONFIG` | Path to the config file |
 | `ZTUTOR_LICENSE_PUBKEY` | Hex-encoded Ed25519 public key for license verification |
+| `ZTUTOR_LICENSE_FILE` | License file path |
 | `ZTUTOR_NO_NAMESPACES=1` | Disable Linux namespace isolation (for environments that do not support it) |
+| `ZTUTOR_EXEC_ADDR` | Client-side remote execution server address |
+| `ZTUTOR_EXEC_TOKEN` | Shared token for remote execution requests |
+| `ZTUTOR_EXEC_TLS=1` | Use TLS for client-side remote execution |
 
 ## Courses
 

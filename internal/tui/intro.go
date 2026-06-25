@@ -455,40 +455,17 @@ func NewCourseIntroScreen(courseID, courseLang, title string, customBeats []stri
 }
 
 func courseIntroBeats(courseLang, title string, customBeats []string, loc *i18n.Locale) ([]DialogueBeat, []introBeatMeta) {
-	if customBeats != nil {
-		if len(customBeats) == 0 {
-			return nil, nil
-		}
-		beats := make([]DialogueBeat, len(customBeats))
-		for i, text := range customBeats {
-			autoDelay := 2000 * time.Millisecond
-			if i == len(customBeats)-1 {
-				autoDelay = 0
-			}
-			beats[i] = DialogueBeat{Text: text + "\n", Mood: MoodCurious, Speed: 2, AutoDelay: autoDelay}
-		}
-		metas := make([]introBeatMeta, len(customBeats))
-		return beats, metas
+	if len(customBeats) == 0 {
+		return nil, nil
 	}
-	switch courseLang {
-	case "c":
-		return []DialogueBeat{
-			{Text: loc.T("intro.c.beat1"), Mood: MoodFocused, Speed: 2, AutoDelay: 1600 * time.Millisecond},
-			{Text: loc.T("intro.c.beat2"), Mood: MoodIdle, Speed: 2, AutoDelay: 2000 * time.Millisecond},
-			{Text: loc.T("intro.c.beat3"), Mood: MoodHappy, Speed: 2, AutoDelay: 2600 * time.Millisecond},
-			{Text: loc.T("intro.c.beat4"), Mood: MoodIdle, Speed: 2, AutoDelay: 0},
-		}, []introBeatMeta{{}, {}, {}, {}}
-	case "python":
-		return []DialogueBeat{
-			{Text: loc.T("intro.py.beat1"), Mood: MoodIdle, Speed: 2, AutoDelay: 1600 * time.Millisecond},
-			{Text: loc.T("intro.py.beat2"), Mood: MoodHappy, Speed: 2, AutoDelay: 2000 * time.Millisecond},
-			{Text: loc.T("intro.py.beat3"), Mood: MoodCurious, Speed: 2, AutoDelay: 2200 * time.Millisecond},
-			{Text: loc.T("intro.py.beat4"), Mood: MoodIdle, Speed: 2, AutoDelay: 0},
-		}, []introBeatMeta{{}, {}, {}, {}}
-	default:
-		return []DialogueBeat{
-			{Text: loc.T("intro.default.beat1", title), Mood: MoodCurious, Speed: 2, AutoDelay: 1800 * time.Millisecond},
-			{Text: loc.T("intro.default.beat2"), Mood: MoodIdle, Speed: 2, AutoDelay: 0},
-		}, []introBeatMeta{{}, {}}
+	beats := make([]DialogueBeat, len(customBeats))
+	for i, text := range customBeats {
+		autoDelay := 2000 * time.Millisecond
+		if i == len(customBeats)-1 {
+			autoDelay = 0
+		}
+		beats[i] = DialogueBeat{Text: text + "\n", Mood: MoodCurious, Speed: 2, AutoDelay: autoDelay}
 	}
+	metas := make([]introBeatMeta, len(customBeats))
+	return beats, metas
 }

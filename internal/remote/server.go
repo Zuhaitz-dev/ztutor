@@ -76,19 +76,29 @@ func handleConn(conn net.Conn) {
 	defer conn.Close()
 	dec := json.NewDecoder(conn)
 	enc := json.NewEncoder(conn)
+	remoteAddr := conn.RemoteAddr().String()
 
 	var req ExecRequest
 	if err := dec.Decode(&req); err != nil {
+		logutil.Debug("exec request decode failed from %s: %v", remoteAddr, err)
 		enc.Encode(ExecResponse{Error: "decode: " + err.Error()}) //nolint:errcheck
 		return
 	}
+	logutil.Debug("exec request: remote=%s op=%s lang=%s files=%d", remoteAddr, req.Op, req.Lang, len(req.Files))
 
 	if execToken != "" && subtle.ConstantTimeCompare([]byte(req.Token), []byte(execToken)) != 1 {
+		logutil.Debug("exec auth failed: remote=%s op=%s lang=%s", remoteAddr, req.Op, req.Lang)
 		enc.Encode(ExecResponse{Error: "auth failed: invalid or missing token"}) //nolint:errcheck
 		return
 	}
 
-	enc.Encode(dispatch(req)) //nolint:errcheck
+	resp := dispatch(req)
+	if resp.Error != "" {
+		logutil.Debug("exec response error: remote=%s op=%s lang=%s error=%s", remoteAddr, req.Op, req.Lang, resp.Error)
+	} else {
+		logutil.Debug("exec response ok: remote=%s op=%s lang=%s", remoteAddr, req.Op, req.Lang)
+	}
+	enc.Encode(resp) //nolint:errcheck
 }
 
 // effectiveFiles returns the files map for a request, falling back to the
@@ -101,6 +111,10 @@ func effectiveFiles(req ExecRequest, lang sandbox.Language) map[string]string {
 }
 
 func dispatch(req ExecRequest) ExecResponse {
+	if req.Op == OpPing {
+		return ExecResponse{Op: req.Op}
+	}
+
 	lang := sandbox.GetLanguage(req.Lang)
 	if lang == nil {
 		return ExecResponse{Op: req.Op, Error: "unknown language: " + req.Lang}

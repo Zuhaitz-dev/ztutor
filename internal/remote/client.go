@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
+	"ztutor/internal/logutil"
 	"ztutor/internal/sandbox"
 )
 
@@ -41,13 +43,15 @@ func NewClientWithToken(addr, token string, useTLS bool) *Client {
 
 func (c *Client) call(req ExecRequest) (ExecResponse, error) {
 	req.Token = c.token
+	logutil.Debug("remote exec request: op=%s lang=%s addr=%s tls=%v files=%d", req.Op, req.Lang, c.addr, c.tls, len(req.Files))
 
 	var conn net.Conn
 	var err error
+	dialer := &net.Dialer{Timeout: 3 * time.Second}
 	if c.tls {
-		conn, err = tls.Dial("tcp", c.addr, &tls.Config{MinVersion: tls.VersionTLS12})
+		conn, err = tls.DialWithDialer(dialer, "tcp", c.addr, &tls.Config{MinVersion: tls.VersionTLS12})
 	} else {
-		conn, err = net.Dial("tcp", c.addr)
+		conn, err = dialer.Dial("tcp", c.addr)
 	}
 	if err != nil {
 		return ExecResponse{}, fmt.Errorf("remote exec: dial %s: %w", c.addr, err)
@@ -63,9 +67,16 @@ func (c *Client) call(req ExecRequest) (ExecResponse, error) {
 		return ExecResponse{}, fmt.Errorf("remote exec: recv: %w", err)
 	}
 	if resp.Error != "" {
+		logutil.Debug("remote exec response error: op=%s lang=%s error=%s", req.Op, req.Lang, resp.Error)
 		return ExecResponse{}, fmt.Errorf("remote exec: %s", resp.Error)
 	}
+	logutil.Debug("remote exec response ok: op=%s lang=%s", req.Op, req.Lang)
 	return resp, nil
+}
+
+func (c *Client) Ping() error {
+	_, err := c.call(ExecRequest{Op: OpPing})
+	return err
 }
 
 func (c *Client) Run(lang sandbox.Language, files map[string]string, buildCmd, stdin string, extraFlags, runtimeArgs []string) (*sandbox.Result, error) {

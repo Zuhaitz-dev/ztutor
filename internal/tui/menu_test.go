@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 
 	"ztutor/internal/lesson"
 	"ztutor/internal/license"
@@ -24,6 +27,132 @@ func TestSectionCounts(t *testing.T) {
 	}
 	if challenges != 2 {
 		t.Errorf("challenges = %d, want 2", challenges)
+	}
+}
+
+func TestMenuView_EmptyCoursesStillShowsMochi(t *testing.T) {
+	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, testLocale(), 80, 24)
+	plain := stripANSI(m.View())
+	if !strings.Contains(plain, "Mochi") {
+		t.Fatalf("empty course menu should still render Mochi, got:\n%s", plain)
+	}
+}
+
+func TestMenuEnterCourse_NoIntroWithoutCourseIntro(t *testing.T) {
+	course := lesson.Course{
+		ID:       "plain-c",
+		Title:    "Plain C",
+		Language: "c",
+		Sections: []lesson.Section{{
+			ID:      "lessons",
+			Type:    "exercises",
+			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
+		}},
+	}
+	m := NewMenuScreen([]lesson.Course{course}, nil, nil, nil, nil, "alice", 0, false, func(string) bool {
+		return true
+	}, testLocale(), 80, 24)
+
+	model, cmd := m.enterCourse(course)
+	if cmd != nil {
+		t.Fatal("course without course_intro should not trigger intro")
+	}
+	got := model.(*MenuScreen)
+	if got.viewLevel != "lessons" {
+		t.Fatalf("viewLevel = %q, want lessons", got.viewLevel)
+	}
+}
+
+func TestMenuEnterCourse_WithCourseIntroTriggersIntro(t *testing.T) {
+	course := lesson.Course{
+		ID:          "starter",
+		Title:       "Starter",
+		Language:    "c",
+		CourseIntro: []string{"Welcome."},
+		Sections: []lesson.Section{{
+			ID:      "lessons",
+			Type:    "exercises",
+			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
+		}},
+	}
+	m := NewMenuScreen([]lesson.Course{course}, nil, nil, nil, nil, "alice", 0, false, func(string) bool {
+		return true
+	}, testLocale(), 80, 24)
+
+	model, cmd := m.enterCourse(course)
+	if cmd == nil {
+		t.Fatal("course with course_intro should trigger intro")
+	}
+	got := model.(*MenuScreen)
+	if got.viewLevel != "courses" {
+		t.Fatalf("viewLevel = %q, want courses before intro completes", got.viewLevel)
+	}
+}
+
+func TestRenderCourseLine_ShowsProgrammingLanguages(t *testing.T) {
+	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, testLocale(), 80, 24)
+	course := lesson.Course{
+		ID:                   "starter",
+		Title:                "Starter",
+		Language:             "c",
+		ProgrammingLanguages: []string{"c", "python", "go", "rust"},
+		UILanguages:          []string{"en", "es"},
+		Sections: []lesson.Section{{
+			Type:    "exercises",
+			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
+		}},
+	}
+	line := stripANSI(m.renderCourseLine(course, 80))
+	if !strings.Contains(line, "{ C · Python · Go · Rust }") {
+		t.Fatalf("course line missing programming language list: %q", line)
+	}
+	if !strings.Contains(line, "{en·es}") {
+		t.Fatalf("course line missing UI languages: %q", line)
+	}
+}
+
+func TestRenderCourseLine_TruncatesTitleForBadges(t *testing.T) {
+	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, testLocale(), 60, 24)
+	course := lesson.Course{
+		ID:       "starter",
+		Title:    "An exceptionally long starter course title",
+		Language: "c",
+		ProgrammingLanguages: []string{
+			"c", "python", "go", "rust",
+		},
+		Sections: []lesson.Section{{
+			Type:    "exercises",
+			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
+		}},
+	}
+	line := stripANSI(m.renderCourseLine(course, 60))
+	if lipgloss.Width(line) > 60 {
+		t.Fatalf("course line width = %d, want <= 60: %q", lipgloss.Width(line), line)
+	}
+	if !strings.Contains(line, "{ C · Python · Go · Rust }") {
+		t.Fatalf("course line missing programming language list: %q", line)
+	}
+}
+
+func TestRenderCourseLine_CompactsSegmentsBeforeOverflow(t *testing.T) {
+	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, testLocale(), 32, 24)
+	course := lesson.Course{
+		ID:                   "starter",
+		Title:                "Starter",
+		Language:             "c",
+		ProgrammingLanguages: []string{"c", "python", "go", "rust"},
+		UILanguages:          []string{"en", "es", "ar", "zh"},
+		Sections: []lesson.Section{{
+			Type:    "exercises",
+			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
+		}},
+	}
+	line := stripANSI(m.renderCourseLine(course, 32))
+	if lipgloss.Width(line) > 32 {
+		t.Fatalf("course line width = %d, want <= 32: %q", lipgloss.Width(line), line)
+	}
+	if !strings.Contains(line, "{ C +3 }") {
+		t.Fatalf("course line should compact programming languages first: %q", line)
 	}
 }
 

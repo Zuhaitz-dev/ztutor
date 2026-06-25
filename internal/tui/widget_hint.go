@@ -26,6 +26,19 @@ func (w *HintWidget) Available() bool { return len(w.hints) > 0 }
 // SetLocale updates the locale used for rendering hint headers.
 func (w *HintWidget) SetLocale(loc *i18n.Locale) { w.loc = loc }
 
+// SetHints replaces the hint texts, e.g. after a locale switch.
+// The current reveal index is clamped so it stays valid.
+func (w *HintWidget) SetHints(hints []string) {
+	w.hints = hints
+	if w.index >= len(w.hints) {
+		w.index = len(w.hints) - 1
+	}
+	if len(w.hints) == 0 {
+		w.visible = false
+		w.index = -1
+	}
+}
+
 // Next advances to the next hint and makes it visible.
 // Wraps around after the last hint. Tracks how many distinct hints were used.
 func (w *HintWidget) Next() {

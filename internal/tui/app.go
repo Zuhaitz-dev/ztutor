@@ -216,6 +216,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// correct language. (The changeLangMsg path for menu/intro already
 			// calls loadCourses; this ensures parity for in-place locale switches.)
 			a.loadCourses()
+			// Push updated lesson content/hints/tutorial into the live screen
+			// before swapping the locale so everything re-renders together.
+			a.refreshCurrentLesson()
 			// If the current screen knows how to update its own locale, do
 			// that in place so the user stays where they are. Otherwise fall
 			// back to navigating to the menu so they see the new language.
@@ -298,7 +301,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.loc = i18n.New(msg.lang)
 		a.loadCourses()
 		// Intro rebuilds its own beats; stay there instead of jumping to menu.
-		if _, ok := a.current.(*IntroScreen); ok {
+		if intro, ok := a.current.(*IntroScreen); ok {
+			// For course intros, customBeats come from course_intro_i18n.
+			// The intro already rebuilt with the stale beats when ^L fired;
+			// now that loadCourses ran we can push the correct language beats.
+			if intro.courseID != "" {
+				if c, found := a.findCourse(intro.courseID); found {
+					intro.customBeats = c.CourseIntro
+					intro.Beats, intro.beatMeta = courseIntroBeats(intro.courseLang, intro.courseTitle, intro.customBeats, a.loc)
+					if intro.BeatIdx >= len(intro.Beats) {
+						intro.BeatIdx = len(intro.Beats) - 1
+					}
+					intro.CharIdx = 0
+				}
+			}
 			return a, nil
 		}
 		// Preserve lesson-list position across language reload for MenuScreen.
@@ -335,12 +351,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case remoteConfigSavedMsg:
 		if msg.addr != "" {
 			a.executor = &sandbox.HybridExecutor{
-				Local:  sandbox.DefaultExecutor(),
+				Local:  sandbox.LocalExecutor{},
 				Remote: remote.NewClientWithToken(msg.addr, msg.token, msg.tls),
 			}
 			logutil.Info("executor updated: remote at %s (tls: %v)", msg.addr, msg.tls)
 		} else {
-			a.executor = sandbox.DefaultExecutor()
+			a.executor = sandbox.LocalExecutor{}
+			logutil.Info("executor updated: local only")
 		}
 		a.switchToMenu()
 		return a, nil
@@ -430,7 +447,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.key == "keymap" {
 			a.keymap = msg.value
 		}
-		a.switchToMenu()
 		return a, nil
 
 	case persistSettingMsg:
@@ -632,6 +648,64 @@ func (a *App) loadCourses() {
 		}
 	}
 	a.courses = courses
+}
+
+// findCourse searches the loaded courses for a course with the given ID.
+func (a *App) findCourse(id string) (lesson.Course, bool) {
+	for _, c := range a.courses {
+		if c.ID == id {
+			return c, true
+		}
+	}
+	return lesson.Course{}, false
+}
+
+// findLesson searches the loaded courses for a lesson with the given ID.
+func (a *App) findLesson(id string) (lesson.Lesson, bool) {
+	for _, c := range a.courses {
+		for _, sec := range c.Sections {
+			for _, l := range sec.Lessons {
+				if l.ID == id {
+					return l, true
+				}
+			}
+		}
+	}
+	return lesson.Lesson{}, false
+}
+
+// refreshCurrentLesson pushes locale-dependent lesson content (text, hints,
+// tutorial) into the live screen after loadCourses has run with the new lang.
+// Call this before SetLocale so the screen re-renders with fresh content.
+func (a *App) refreshCurrentLesson() {
+	switch s := a.current.(type) {
+	case *LessonScreen:
+		if l, ok := a.findLesson(s.lesson.ID); ok {
+			s.lesson = l
+		}
+	case *ExerciseScreen:
+		if l, ok := a.findLesson(s.lesson.ID); ok {
+			s.hint.SetHints(l.Hints)
+		}
+	case *PreExerciseScreen:
+		if l, ok := a.findLesson(s.lesson.ID); ok {
+			newBeats := tutorialBeats(l.Tutorial)
+			s.lesson = l
+			// Update text of each beat in-place to preserve the current position.
+			for i := range newBeats {
+				if i < len(s.Beats) {
+					s.Beats[i].Text = newBeats[i].Text
+				}
+			}
+			if len(newBeats) != len(s.Beats) {
+				s.Beats = newBeats
+				s.BeatIdx = 0
+				s.CharIdx = 0
+			} else {
+				s.CharIdx = 0 // re-type the current beat in the new language
+			}
+		}
+	}
 }
 
 // exercisePrefs returns the persisted mascot/timer visibility settings.

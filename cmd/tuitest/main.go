@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"ztutor/internal/db"
 	"ztutor/internal/tui"
@@ -16,7 +17,7 @@ func main() {
 	// still works after a fresh checkout without course content.
 	coursesDir := "./courses"
 	var cleanup func()
-	if _, err := os.Stat(coursesDir); err != nil {
+	if !hasCourseManifests(coursesDir) {
 		coursesDir, cleanup = setupTempCourses()
 	}
 	if cleanup != nil {
@@ -79,4 +80,9 @@ toolchain:
 	os.WriteFile(lessonDir+"/lesson.md", []byte(lessonMD), 0644)
 
 	return dir, func() { os.RemoveAll(dir) }
+}
+
+func hasCourseManifests(dir string) bool {
+	matches, err := filepath.Glob(filepath.Join(dir, "*", "course.yaml"))
+	return err == nil && len(matches) > 0
 }
