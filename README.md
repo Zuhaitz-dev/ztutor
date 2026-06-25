@@ -31,6 +31,50 @@ Full course content can still be distributed separately. If `courses/` is empty
 or not mounted, the app starts and shows an empty course menu; add course
 directories or `.course` packages to make lessons available.
 
+### Local controller support (Linux only)
+
+The local `ztutor` client supports two controller input paths:
+
+**Path 1 — native Linux gamepad** (`/dev/input`)
+
+Plug in a controller. If it registers as an `event-joystick` device (most USB/Bluetooth gamepads do), ztutor picks it up automatically. A DualShock 4 or Xbox controller usually works without any extra setup.
+
+| Button | Xbox | PlayStation | Action |
+|--------|------|-------------|--------|
+| South | A | Cross ✕ | Select / confirm |
+| East | B | Circle ○ | Back / cancel |
+| West | X | Square □ | Run / submit (Ctrl+S) |
+| North | Y | Triangle △ | Hint (?) |
+| D-pad / left stick | ↑↓←→ | ↑↓←→ | Navigate |
+| LB / L1 or Select | LB | L1 | Previous section (Shift+Tab) |
+| RB / R1 | RB | R1 | Next section (Tab) |
+| Start / Options | Start | Options | Keybindings overlay (F1) |
+
+If the controller is detected but does not respond, check that your user can read `/dev/input/event*`. On most Linux systems that means adding the user to the `input` group:
+
+```bash
+sudo usermod -aG input $USER  # log out and back in after this
+```
+
+Or install a udev rule that grants access for a specific USB vendor/product ID.
+
+**Path 2 — keyboard mapper (F13–F20)**
+
+Use this if your controller appears as a generic HID device or you want a software remapper like `xboxdrv`, `antimicro`, `reWASD`, or Steam Input. Configure your mapper to send these key codes:
+
+| F-key | Action |
+|-------|--------|
+| F13 | Select (Enter) |
+| F14 | Back (Esc) |
+| F15 | Up |
+| F16 | Down |
+| F17 | Left |
+| F18 | Right |
+| F19 | Run / submit (Ctrl+S) |
+| F20 | Hint (?) |
+
+Both paths work simultaneously — you can have the native driver and a mapper active at the same time.
+
 ## Deployment
 
 ### Docker
@@ -95,6 +139,8 @@ Environment variables:
 | `ZTUTOR_EXEC_ADDR` | Client-side remote execution server address |
 | `ZTUTOR_EXEC_TOKEN` | Shared token for remote execution requests |
 | `ZTUTOR_EXEC_TLS=1` | Use TLS for client-side remote execution |
+| `ZTUTOR_GAMEPAD=0` | Disable native local gamepad input |
+| `ZTUTOR_GAMEPAD_DEVICE` | Force a specific Linux event device path |
 
 ## Courses
 
@@ -134,6 +180,7 @@ toolchain:
 |------|---------|
 | `exercises` | Progressive coding lessons |
 | `interviews` | Technical interview practice |
+| `quizzes` | Multiple-choice concept checks |
 | `exams` | Timed assessments |
 | `challenges` | Recurring coding challenges |
 

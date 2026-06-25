@@ -481,37 +481,37 @@ func (c *ExerciseCompositor) SetSize(width, height int) {
 // Call this once per frame from the output panel's layout closure.
 func (c *ExerciseCompositor) SetOutputH(h int) { c.outputH = h }
 
-func (c *ExerciseCompositor) HelpBar(passed, running, hasFileList bool, T func(string, ...interface{}) string) string {
-	return c.helpBar(passed, running, hasFileList, T)
+func (c *ExerciseCompositor) HelpBar(passed, running, hasFileList bool, loc *i18n.Locale) string {
+	return c.helpBar(passed, running, hasFileList, loc)
 }
 
-func (c *ExerciseCompositor) helpBar(passed, running, hasFileList bool, T func(string, ...interface{}) string) string {
+func (c *ExerciseCompositor) helpBar(passed, running, hasFileList bool, loc *i18n.Locale) string {
 	var b strings.Builder
-	var row1, row2 []string
+	var row1, row2 []HelpAction
 
 	switch {
 	case running:
-		row1 = []string{T("exercise.help.send"), T("exercise.help.kill"), T("exercise.help.back")}
+		row1 = []HelpAction{HA(ActionSend), HA(ActionKill), HA(ActionExerciseBack)}
 	case c.layout == lkAsmSplit:
-		row1 = []string{T("lesson.help.scroll"), T("lesson.help.top_end"), T("exercise.help.asm_resize"), T("exercise.help.asm_annotate"), T("exercise.help.asm_hide"), T("help.esc_back")}
+		row1 = []HelpAction{HA(ActionScroll), HA(ActionTopEnd), HA(ActionAsmResize), HA(ActionAsmAnnotate), HA(ActionAsmHide), HA(ActionEscBack)}
 	case c.layout == lkOutput:
-		row1 = []string{T("lesson.help.scroll"), T("lesson.help.top_end"), T("exercise.help.output_resize"), T("help.esc_back")}
+		row1 = []HelpAction{HA(ActionScroll), HA(ActionTopEnd), HA(ActionOutputResize), HA(ActionEscBack)}
 	case c.focusID == WidgetFileList:
-		row1 = []string{T("exercise.help.filelist.move"), T("exercise.help.filelist.select"), T("help.esc_back")}
+		row1 = []HelpAction{HA(ActionFileListMove), HA(ActionFileListSelect), HA(ActionEscBack)}
 	case passed:
-		row1 = []string{T("exercise.help.next"), T("exercise.help.back")}
+		row1 = []HelpAction{HA(ActionNext), HA(ActionExerciseBack)}
 	default:
-		row1 = []string{T("exercise.help.run"), T("exercise.help.interactive"), T("exercise.help.asan"), T("exercise.help.gdb"), T("exercise.help.back")}
-		row2 = []string{T("exercise.help.asm"), T("exercise.help.inputs"), T("exercise.help.output"), T("help.mochi"), T("exercise.help.hint_start", 0), T("exercise.help.trivia")}
+		row1 = []HelpAction{HA(ActionRun), HA(ActionInteractive), HA(ActionASAN), HA(ActionGDB), HA(ActionExerciseBack)}
+		row2 = []HelpAction{HA(ActionAssembly), HA(ActionInputs), HA(ActionOutput), HA(ActionMochi), HA(ActionHintStart, 0), HA(ActionTrivia)}
 		if hasFileList {
-			row2 = append(row2, T("exercise.help.filelist"))
+			row2 = append(row2, HA(ActionFileList))
 		}
 	}
 
-	b.WriteString(helpBar(row1...))
+	b.WriteString(actionHelpBar(loc, row1...))
 	if len(row2) > 0 {
 		b.WriteString("\n")
-		b.WriteString(helpBar(row2...))
+		b.WriteString(actionHelpBar(loc, row2...))
 	}
 	return b.String()
 }

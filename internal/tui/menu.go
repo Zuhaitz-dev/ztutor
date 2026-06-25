@@ -117,6 +117,10 @@ type NavigateToExerciseMsg struct {
 	Lesson lesson.Lesson
 }
 
+type NavigateToQuizMsg struct {
+	Quiz lesson.Quiz
+}
+
 type lessonCompletedMsg struct {
 	lessonID string
 	stars    int
@@ -134,8 +138,9 @@ type displayItem struct {
 	difficulty string
 	isPremium  bool
 	isLocked   bool
-	kind       string // "lesson" or "challenge"
+	kind       string // "lesson", "quiz", or "challenge"
 	lesson     lesson.Lesson
+	quiz       lesson.Quiz
 	challenge  lesson.Challenge
 }
 
@@ -253,11 +258,6 @@ func padVis(s string, visW int) string {
 	return s + strings.Repeat(" ", visW-w)
 }
 
-func langBadge(lang string) string {
-	lc := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHex))
-	return lc.Render("[" + strings.ToUpper(lang) + "]")
-}
-
 func programmingLangLabel(lang string) string {
 	if l := sandbox.GetLanguage(lang); l != nil {
 		return l.DisplayName()
@@ -345,21 +345,17 @@ func (s *courseLineSegment) degrade() bool {
 	return true
 }
 
-func joinCourseLineParts(parts ...string) string {
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if strings.TrimSpace(part) != "" {
-			out = append(out, part)
-		}
-	}
-	return strings.Join(out, "  ")
+func joinCourseLineParts(rtl bool, parts ...string) string {
+	return joinInlineParts(rtl, parts...)
 }
 
-func sectionCounts(c *lesson.Course) (lessons, interviews, challenges int) {
+func sectionCounts(c *lesson.Course) (lessons, interviews, quizzes, challenges int) {
 	for _, s := range c.Sections {
 		switch s.Type {
 		case "interviews":
 			interviews += len(s.Lessons)
+		case "quizzes":
+			quizzes += len(s.Quizzes)
 		case "challenges":
 			challenges += len(s.Challenges)
 		default:
@@ -373,14 +369,22 @@ func sectionCounts(c *lesson.Course) (lessons, interviews, challenges int) {
 // user has completed (stars > 0) out of the total available.
 func courseProgressCounts(c *lesson.Course, progress map[string]int) (done, total int) {
 	for _, s := range c.Sections {
-		if s.Type == "challenges" {
+		switch s.Type {
+		case "challenges":
 			total += len(s.Challenges)
 			for _, ch := range s.Challenges {
 				if progress[ch.ID] > 0 {
 					done++
 				}
 			}
-		} else {
+		case "quizzes":
+			total += len(s.Quizzes)
+			for _, q := range s.Quizzes {
+				if progress[q.ID] > 0 {
+					done++
+				}
+			}
+		default:
 			total += len(s.Lessons)
 			for _, l := range s.Lessons {
 				if progress[l.ID] > 0 {
@@ -454,7 +458,8 @@ func (m *MenuScreen) buildDisplayItems(query string) []displayItem {
 	courseFree := !m.selectedCourse.EnrollmentRequired || m.canAccess(m.selectedCourse.ID)
 
 	var items []displayItem
-	if sec.Type == "challenges" {
+	switch sec.Type {
+	case "challenges":
 		for _, ch := range sec.Challenges {
 			if q != "" {
 				hay := strings.ToLower(ch.Title + " " + ch.Difficulty + " " + strings.Join(ch.Tags, " "))
@@ -471,7 +476,24 @@ func (m *MenuScreen) buildDisplayItems(query string) []displayItem {
 				isLocked:   locked,
 			})
 		}
-	} else {
+	case "quizzes":
+		for _, quiz := range sec.Quizzes {
+			if q != "" {
+				hay := strings.ToLower(quiz.Title + " " + quiz.Description + " " + quiz.Difficulty + " " + strings.Join(quiz.Tags, " "))
+				if !strings.Contains(hay, q) {
+					continue
+				}
+			}
+			locked := !courseFree
+			items = append(items, displayItem{
+				title:      quiz.Title,
+				difficulty: quiz.Difficulty,
+				kind:       "quiz",
+				quiz:       quiz,
+				isLocked:   locked,
+			})
+		}
+	default:
 		for _, l := range sec.Lessons {
 			if q != "" {
 				hay := strings.ToLower(l.Title + " " + l.Difficulty + " " + strings.Join(l.Tags, " "))
@@ -671,6 +693,13 @@ func (m *MenuScreen) switchSection(dir int) {
 	m.lessonCursor = 0
 	m.lessonOffset = 0
 	m.displayItems = m.buildDisplayItems(m.searchQuery)
+	if m.sectionIndex < len(m.selectedCourse.Sections) {
+		sec := m.selectedCourse.Sections[m.sectionIndex]
+		key := "mochi.section_" + sec.Type
+		if val := m.loc.T(key); val != key {
+			m.compatLine = val
+		}
+	}
 }
 
 func (m *MenuScreen) updateSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -793,6 +822,9 @@ func (m *MenuScreen) enterItem(item displayItem) (tea.Model, tea.Cmd) {
 			lang = sandbox.GetLanguage("c")
 		}
 		return m, backCmd(NavigateToChallengeMsg{Challenge: item.challenge, CourseID: m.selectedCourse.ID, Lang: lang})
+	}
+	if item.kind == "quiz" {
+		return m, backCmd(NavigateToQuizMsg{Quiz: item.quiz})
 	}
 	return m, backCmd(NavigateToLessonMsg{Lesson: item.lesson})
 }
@@ -962,13 +994,16 @@ func (m *MenuScreen) mascotLine() string {
 		if done > 0 && total > 0 {
 			return m.loc.T("mochi.course_progress", c.Title, done, total)
 		}
-		l, i, ch := sectionCounts(&c)
+		l, i, q, ch := sectionCounts(&c)
 		var parts []string
 		if l > 0 {
 			parts = append(parts, m.loc.T("menu.chip_lessons", l))
 		}
 		if i > 0 {
 			parts = append(parts, m.loc.T("menu.chip_interviews", i))
+		}
+		if q > 0 {
+			parts = append(parts, m.loc.T("menu.chip_quizzes", q))
 		}
 		if ch > 0 {
 			parts = append(parts, m.loc.T("menu.chip_challenges", ch))
@@ -1210,8 +1245,9 @@ func (m *MenuScreen) renderCourseView(b *strings.Builder) string {
 }
 
 func (m *MenuScreen) renderCourseLine(c lesson.Course, maxWidth int) string {
-	nl, ni, nc := sectionCounts(&c)
+	nl, ni, nq, nc := sectionCounts(&c)
 	T := m.loc.T
+	rtl := m.loc.IsRTL()
 
 	courseFree := !c.EnrollmentRequired || m.canAccess(c.ID)
 	courseLocked := c.EnrollmentRequired && !courseFree
@@ -1223,6 +1259,9 @@ func (m *MenuScreen) renderCourseLine(c lesson.Course, maxWidth int) string {
 	}
 	if ni > 0 {
 		chips = append(chips, lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHex)).Render(T("menu.chip_interviews", ni)))
+	}
+	if nq > 0 {
+		chips = append(chips, lipgloss.NewStyle().Foreground(lipgloss.Color("141")).Render(T("menu.chip_quizzes", nq)))
 	}
 	if nc > 0 {
 		chips = append(chips, lipgloss.NewStyle().Foreground(lipgloss.Color("204")).Render(T("menu.chip_challenges", nc)))
@@ -1237,7 +1276,7 @@ func (m *MenuScreen) renderCourseLine(c lesson.Course, maxWidth int) string {
 		tags = append(tags, lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(T("menu.tag_locked")))
 	}
 	if c.Encrypted {
-		if c.TotalLessons == 0 && c.TotalChallenges == 0 {
+		if c.TotalLessons == 0 && c.TotalQuizzes == 0 && c.TotalChallenges == 0 {
 			tags = append(tags, lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(T("menu.tag_missing")))
 		} else {
 			tags = append(tags, lipgloss.NewStyle().Foreground(lipgloss.Color(ColorCyan)).Render(T("menu.tag_encrypted")))
@@ -1290,6 +1329,7 @@ func (m *MenuScreen) renderCourseLine(c lesson.Course, maxWidth int) string {
 	}
 	if maxWidth <= 0 {
 		return joinCourseLineParts(
+			rtl,
 			titleStyle.Render(titleText),
 			segments["prog"].current(),
 			segments["ui"].current(),
@@ -1300,6 +1340,7 @@ func (m *MenuScreen) renderCourseLine(c lesson.Course, maxWidth int) string {
 	}
 	for {
 		suffix := joinCourseLineParts(
+			rtl,
 			segments["prog"].current(),
 			segments["ui"].current(),
 			segments["counts"].current(),
@@ -1311,10 +1352,10 @@ func (m *MenuScreen) renderCourseLine(c lesson.Course, maxWidth int) string {
 			availableTitle -= lipgloss.Width(suffix) + 2
 		}
 		if availableTitle >= fullTitleWidth {
-			return joinCourseLineParts(titleStyle.Render(titleText), suffix)
+			return joinCourseLineParts(rtl, titleStyle.Render(titleText), suffix)
 		}
 		if availableTitle >= minTitleWidth {
-			return joinCourseLineParts(titleStyle.Render(truncRunes(titleText, availableTitle)), suffix)
+			return joinCourseLineParts(rtl, titleStyle.Render(truncRunes(titleText, availableTitle)), suffix)
 		}
 		degraded := false
 		for _, key := range degradeOrder {
@@ -1327,7 +1368,7 @@ func (m *MenuScreen) renderCourseLine(c lesson.Course, maxWidth int) string {
 			if availableTitle < 1 {
 				availableTitle = 1
 			}
-			return joinCourseLineParts(titleStyle.Render(truncRunes(titleText, availableTitle)), suffix)
+			return joinCourseLineParts(rtl, titleStyle.Render(truncRunes(titleText, availableTitle)), suffix)
 		}
 	}
 }
@@ -1435,9 +1476,12 @@ func (m *MenuScreen) renderSectionTabs() string {
 func (m *MenuScreen) renderLessonLine(di displayItem) string {
 	// Stars / completion indicator (3 visible chars).
 	var starStr string
-	if di.kind == "lesson" {
+	switch di.kind {
+	case "lesson":
 		starStr = starsStyle(m.progress[di.lesson.ID])
-	} else {
+	case "quiz":
+		starStr = starsStyle(m.progress[di.quiz.ID])
+	default:
 		starStr = dim("   ")
 	}
 
@@ -1453,6 +1497,8 @@ func (m *MenuScreen) renderLessonLine(di displayItem) string {
 	default:
 		if di.kind == "challenge" {
 			diffBadge = lipgloss.NewStyle().Foreground(lipgloss.Color("204")).Render("[chl]")
+		} else if di.kind == "quiz" {
+			diffBadge = lipgloss.NewStyle().Foreground(lipgloss.Color("141")).Render("[qiz]")
 		} else {
 			diffBadge = dim("[---]")
 		}
@@ -1489,22 +1535,21 @@ func (m *MenuScreen) renderFooter(panelW int) string {
 // ── Help Bar ─────────────────────────────────────────────────────────────────
 
 func (m *MenuScreen) renderHelpBar() string {
-	T := m.loc.T
-	var hb []string
+	var hb []HelpAction
 	if m.viewLevel == "courses" {
-		hb = []string{T("help.navigate"), T("help.search"), T("help.select")}
+		hb = []HelpAction{HA(ActionNavigate), HA(ActionSearch), HA(ActionSelect)}
 	} else {
-		hb = []string{T("help.navigate"), T("help.section"), T("help.search"), T("help.select"), T("help.back")}
+		hb = []HelpAction{HA(ActionNavigate), HA(ActionSection), HA(ActionSearch), HA(ActionSelect), HA(ActionMenuBack)}
 	}
 	if m.suggestedLesson() != nil {
-		hb = append(hb, T("help.review"))
+		hb = append(hb, HA(ActionReview))
 	}
-	hb = append(hb, T("help.achieve"), T("help.ranks"), T("help.settings"), T("help.credits"), T("help.mochi"), T("help.language"))
+	hb = append(hb, HA(ActionAchievements), HA(ActionLeaderboard), HA(ActionSettings), HA(ActionCredits), HA(ActionMochi), HA(ActionLanguage))
 	if m.isAdmin {
-		hb = append(hb, T("help.admin"))
+		hb = append(hb, HA(ActionAdmin))
 	}
-	hb = append(hb, T("help.quit"))
-	bar := helpBar(hb...)
+	hb = append(hb, HA(ActionQuit))
+	bar := actionHelpBar(m.loc, hb...)
 	if m.loc.IsRTL() {
 		return lipgloss.NewStyle().Width(m.Width).Align(lipgloss.Right).Render(bar)
 	}

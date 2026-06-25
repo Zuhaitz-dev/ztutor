@@ -1,6 +1,6 @@
 id: ztutor-starter
 title: ztutor Starter
-description: "Four languages, four lessons. Write hello world in C, Python, Go, and Rust — and see how each language approaches the same problem."
+description: "Four languages, four lessons. Write hello world in C, Python, Go, and Rust, and see how each language approaches the same problem."
 language: c
 order: 0
 ui_languages: [en, es, ar, zh]
@@ -10,24 +10,28 @@ course_intro_i18n:
   en:
     - "Four languages. Four lessons. One goal each time."
     - "You will write hello world in C, Python, Go, and Rust."
-    - "Each language has its own style — pay attention to the differences."
+    - "Each language has its own style. Pay attention to the differences."
   es:
     - "Cuatro lenguajes. Cuatro lecciones. Un objetivo cada vez."
     - "Escribirás hello world en C, Python, Go y Rust."
-    - "Cada lenguaje tiene su propio estilo — presta atención a las diferencias."
+    - "Cada lenguaje tiene su propio estilo. Presta atención a las diferencias."
   zh:
     - "四种语言。四节课。每次一个目标。"
     - "你将用 C、Python、Go 和 Rust 分别写出 hello world。"
-    - "每种语言都有自己的风格——注意它们之间的区别。"
+    - "每种语言都有自己的风格。注意它们之间的区别。"
   ar:
     - "أربع لغات. أربعة دروس. هدف واحد في كل مرة."
     - "ستكتب hello world بلغات C وPython وGo وRust."
-    - "لكل لغة أسلوبها الخاص — انتبه إلى الفروق."
+    - "لكل لغة أسلوبها الخاص. انتبه إلى الفروق."
 sections:
   - id: lessons
     title: Lessons
     type: exercises
     dir: lessons/
+  - id: quizzes
+    title: Quiz
+    type: quizzes
+    dir: quizzes/
 toolchain:
   source_extension: .c
   syntax_highlighting: c

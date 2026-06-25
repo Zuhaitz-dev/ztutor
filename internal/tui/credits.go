@@ -217,7 +217,6 @@ func (cs *CreditsScreen) buildLines() []string {
 }
 
 func (cs *CreditsScreen) View() string {
-	T := cs.loc.T
 	lines := cs.buildLines()
 
 	visible := cs.Height - 2
@@ -233,7 +232,7 @@ func (cs *CreditsScreen) View() string {
 	var b strings.Builder
 	b.WriteString(strings.Join(lines[cs.scroll:end], "\n"))
 	b.WriteString("\n")
-	b.WriteString(helpBar(T("help.q_back")))
+	b.WriteString(actionHelpBar(cs.loc, HA(ActionBack)))
 	result := b.String()
 	return rtlWrap(cs.loc.IsRTL(), result, cs.Width)
 }

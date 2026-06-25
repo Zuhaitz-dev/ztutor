@@ -90,11 +90,11 @@ func (ls *LessonScreen) View() string {
 	// Build the title line then right-align it independently in RTL so that
 	// the glamour viewport below (which has its own layout) is not affected.
 	titleSt := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent))
-	titleLine := titleSt.Render(ls.lesson.Title)
+	titleParts := []string{titleSt.Render(ls.lesson.Title)}
 
 	if ls.lesson.IsPremium {
 		premSt := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAmber)).Bold(true)
-		titleLine += "  " + premSt.Render(ls.loc.T("lesson.premium_badge"))
+		titleParts = append(titleParts, premSt.Render(ls.loc.T("lesson.premium_badge")))
 	}
 
 	if len(ls.lesson.Companies) > 0 {
@@ -106,8 +106,9 @@ func (ls *LessonScreen) View() string {
 		for i, c := range ls.lesson.Companies {
 			tags[i] = tagSt.Render(c)
 		}
-		titleLine += "  " + strings.Join(tags, " ")
+		titleParts = append(titleParts, strings.Join(tags, " "))
 	}
+	titleLine := joinInlineParts(rtl, titleParts...)
 	b.WriteString(rtlWrap(rtl, titleLine, ls.Width))
 	b.WriteString("\n")
 
@@ -121,7 +122,7 @@ func (ls *LessonScreen) View() string {
 		if len(ls.lesson.Tags) > 0 {
 			parts = append(parts, dim(strings.Join(ls.lesson.Tags, "  ")))
 		}
-		b.WriteString(rtlWrap(rtl, strings.Join(parts, "  "), ls.Width))
+		b.WriteString(rtlWrap(rtl, joinInlineParts(rtl, parts...), ls.Width))
 		b.WriteString("\n")
 	}
 
@@ -133,22 +134,25 @@ func (ls *LessonScreen) View() string {
 	b.WriteString("\n")
 
 	// Help bar — right-align independently in RTL.
-	T := ls.loc.T
-	items := []string{T("lesson.help.scroll"), T("lesson.help.top_end")}
+	items := []HelpAction{HA(ActionScroll), HA(ActionTopEnd)}
 	if ls.lesson.Answer != "" {
 		if ls.answered {
-			items = append(items, T("lesson.help.hide_answer"))
+			items = append(items, HA(ActionHideAnswer))
 		} else {
-			items = append(items, T("lesson.help.reveal_answer"))
+			items = append(items, HA(ActionRevealAnswer))
 		}
 	}
 	if ls.lesson.Exercise != "" || len(ls.lesson.Files) > 0 {
-		items = append(items, T("lesson.help.exercise"))
+		items = append(items, HA(ActionExercise))
 	}
-	items = append(items, T("help.q_back"))
+	items = append(items, HA(ActionBack))
 	pct := int(ls.viewport.ScrollPercent() * 100)
-	items = append(items, fmt.Sprintf("%d%%", pct))
-	b.WriteString(rtlWrap(rtl, helpBar(items...), ls.Width))
+	bar := actionHelpBar(ls.loc, items...)
+	if bar != "" {
+		bar += "  "
+	}
+	bar += dim(fmt.Sprintf("%d%%", pct))
+	b.WriteString(rtlWrap(rtl, bar, ls.Width))
 
 	return b.String()
 }

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -454,7 +455,42 @@ func NewCourseIntroScreen(courseID, courseLang, title string, customBeats []stri
 	}
 }
 
+// introLangKey normalises a sandbox language ID to the short key used in locale files.
+func introLangKey(lang string) string {
+	switch lang {
+	case "python":
+		return "py"
+	case "c++", "cpp":
+		return "c"
+	}
+	return lang
+}
+
 func courseIntroBeats(courseLang, title string, customBeats []string, loc *i18n.Locale) ([]DialogueBeat, []introBeatMeta) {
+	if len(customBeats) == 0 {
+		// Fall back to locale-keyed beats for the course language.
+		shortLang := introLangKey(courseLang)
+		for i := 1; i <= 4; i++ {
+			key := fmt.Sprintf("intro.%s.beat%d", shortLang, i)
+			val := loc.T(key)
+			if val == key {
+				break
+			}
+			customBeats = append(customBeats, val)
+		}
+	}
+	if len(customBeats) == 0 {
+		// Ultimate fallback: generic default beats.
+		customBeats = append(customBeats, loc.T("intro.default.beat1", title))
+		for i := 2; i <= 4; i++ {
+			key := fmt.Sprintf("intro.default.beat%d", i)
+			val := loc.T(key)
+			if val == key {
+				break
+			}
+			customBeats = append(customBeats, val)
+		}
+	}
 	if len(customBeats) == 0 {
 		return nil, nil
 	}

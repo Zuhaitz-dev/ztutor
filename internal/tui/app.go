@@ -128,6 +128,7 @@ type App struct {
 
 	current   tea.Model
 	launchGDB func(*sandbox.DebugBuild, lesson.Lesson)
+	gamepad   *NativeGamepad
 
 	sized
 	mascotFrame int
@@ -159,6 +160,9 @@ func NewApp(username, coursesDir, lessonsDir string, database *db.DB, lic *licen
 		uiLang:     uiLang,
 		loc:        i18n.New(uiLang),
 	}
+	if nativeGamepadEnabled {
+		app.gamepad = NewNativeGamepad()
+	}
 
 	if u, err := database.GetUser(username); err == nil && u.Role == db.RoleAdmin {
 		app.isAdmin = true
@@ -169,7 +173,9 @@ func NewApp(username, coursesDir, lessonsDir string, database *db.DB, lic *licen
 	app.streak = database.UpdateStreak(username)
 
 	if startLesson != nil {
-		app.current = NewExerciseScreen(*startLesson, app.resolveLanguage(startLesson), app.executor, width, height, keymap, app.progress[startLesson.ID], app.streak, app.loc, true, true)
+		es := NewExerciseScreen(*startLesson, app.resolveLanguage(startLesson), app.executor, width, height, keymap, app.progress[startLesson.ID], app.streak, app.loc, true, true)
+		es.SetHasGamepad(app.gamepad != nil)
+		app.current = es
 		app.applyMascotFrame()
 	} else {
 		introSeen, _ := database.GetUserSetting(username, "intro_seen")
@@ -186,6 +192,9 @@ func (a *App) RelaunchUser() string { return a.username }
 
 func (a *App) Init() tea.Cmd {
 	cmds := []tea.Cmd{mascotTickCmd()}
+	if a.gamepad != nil {
+		cmds = append(cmds, a.gamepad.Next())
+	}
 	if a.current != nil {
 		if cmd := a.current.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -195,6 +204,14 @@ func (a *App) Init() tea.Cmd {
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if gm, ok := msg.(gamepadInputMsg); ok {
+		m, cmd := a.Update(normalizeInputMsg(gm))
+		if app, ok := m.(*App); ok && app.gamepad != nil {
+			return app, tea.Batch(cmd, app.gamepad.Next())
+		}
+		return m, cmd
+	}
+	msg = normalizeInputMsg(msg)
 	// ^L: save language to DB synchronously before any async cmd, so the
 	// preference is persisted even if the user navigates away immediately.
 	// IntroScreen and MenuScreen rebuild their own content and also emit
@@ -395,7 +412,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		showMascot, showTimer := a.exercisePrefs()
-		a.current = NewExerciseScreen(msg.Lesson, a.resolveLanguage(&msg.Lesson), a.executor, a.Width, a.Height, a.keymap, a.progress[msg.Lesson.ID], a.streak, a.loc, showMascot, showTimer)
+		es := NewExerciseScreen(msg.Lesson, a.resolveLanguage(&msg.Lesson), a.executor, a.Width, a.Height, a.keymap, a.progress[msg.Lesson.ID], a.streak, a.loc, showMascot, showTimer)
+		es.SetHasGamepad(a.gamepad != nil)
+		a.current = es
 		a.applyMascotFrame()
 		return a, a.current.Init()
 
@@ -408,7 +427,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			logutil.Warn("failed to save tutorial_%s for %s: %v", msg.lesson.ID, a.username, err)
 		}
 		showMascot, showTimer := a.exercisePrefs()
-		a.current = NewExerciseScreen(msg.lesson, a.resolveLanguage(&msg.lesson), a.executor, a.Width, a.Height, a.keymap, a.progress[msg.lesson.ID], a.streak, a.loc, showMascot, showTimer)
+		es2 := NewExerciseScreen(msg.lesson, a.resolveLanguage(&msg.lesson), a.executor, a.Width, a.Height, a.keymap, a.progress[msg.lesson.ID], a.streak, a.loc, showMascot, showTimer)
+		es2.SetHasGamepad(a.gamepad != nil)
+		a.current = es2
 		a.applyMascotFrame()
 		return a, a.current.Init()
 
@@ -426,6 +447,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case NavigateToChallengeMsg:
 		a.current = NewChallengeScreen(msg.Challenge, msg.CourseID, msg.Lang, a.executor, a.Width, a.Height, a.loc)
+		a.applyMascotFrame()
+		return a, a.current.Init()
+
+	case NavigateToQuizMsg:
+		a.current = NewQuizScreen(msg.Quiz, a.progress[msg.Quiz.ID], a.Width, a.Height, a.loc)
 		a.applyMascotFrame()
 		return a, a.current.Init()
 
@@ -470,7 +496,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if l.ID == msg.lessonID && i+1 < len(lessons) {
 					next := lessons[i+1]
 					showMascot, showTimer := a.exercisePrefs()
-					a.current = NewExerciseScreen(next, a.resolveLanguage(&next), a.executor, a.Width, a.Height, a.keymap, a.progress[next.ID], a.streak, a.loc, showMascot, showTimer)
+					esNext := NewExerciseScreen(next, a.resolveLanguage(&next), a.executor, a.Width, a.Height, a.keymap, a.progress[next.ID], a.streak, a.loc, showMascot, showTimer)
+					esNext.SetHasGamepad(a.gamepad != nil)
+					a.current = esNext
 					a.applyMascotFrame()
 					return a, a.current.Init()
 				}
@@ -674,6 +702,19 @@ func (a *App) findLesson(id string) (lesson.Lesson, bool) {
 	return lesson.Lesson{}, false
 }
 
+func (a *App) findQuiz(id string) (lesson.Quiz, bool) {
+	for _, c := range a.courses {
+		for _, sec := range c.Sections {
+			for _, q := range sec.Quizzes {
+				if q.ID == id {
+					return q, true
+				}
+			}
+		}
+	}
+	return lesson.Quiz{}, false
+}
+
 // refreshCurrentLesson pushes locale-dependent lesson content (text, hints,
 // tutorial) into the live screen after loadCourses has run with the new lang.
 // Call this before SetLocale so the screen re-renders with fresh content.
@@ -704,6 +745,10 @@ func (a *App) refreshCurrentLesson() {
 			} else {
 				s.CharIdx = 0 // re-type the current beat in the new language
 			}
+		}
+	case *QuizScreen:
+		if q, ok := a.findQuiz(s.quiz.ID); ok {
+			s.SetQuiz(q)
 		}
 	}
 }
@@ -746,7 +791,7 @@ func (a *App) resolveLanguage(l *lesson.Lesson) sandbox.Language {
 func (a *App) totalLessons() int {
 	n := 0
 	for _, c := range a.filteredCourses() {
-		n += c.TotalLessons
+		n += c.TotalLessons + c.TotalQuizzes
 	}
 	return n
 }
@@ -774,6 +819,12 @@ func (a *App) checkGraduate(lessonID string) {
 					break
 				}
 			}
+			for _, q := range sec.Quizzes {
+				if q.ID == lessonID {
+					found = true
+					break
+				}
+			}
 			if found {
 				break
 			}
@@ -786,6 +837,12 @@ func (a *App) checkGraduate(lessonID string) {
 		for _, sec := range c.Sections {
 			for _, cl := range sec.Lessons {
 				if a.progress[cl.ID] == 0 {
+					allDone = false
+					break
+				}
+			}
+			for _, q := range sec.Quizzes {
+				if a.progress[q.ID] == 0 {
 					allDone = false
 					break
 				}
@@ -907,16 +964,37 @@ func renderKey(k string) string {
 		Render(k)
 }
 
-func helpBar(items ...string) string {
+func renderHelpItem(key, label string) string {
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
+	if strings.TrimSpace(key) == "" {
+		return descStyle.Render(label)
+	}
+	if strings.TrimSpace(label) == "" {
+		return renderKey(key)
+	}
+	return renderKey(key) + " " + descStyle.Render(label)
+}
 
+func actionHelpBar(loc *i18n.Locale, actions ...HelpAction) string {
+	parts := make([]string, 0, len(actions))
+	for _, item := range actions {
+		action, ok := LookupKeyAction(item.ID)
+		if !ok {
+			continue
+		}
+		parts = append(parts, renderHelpItem(keyDisplay(action.Keys), actionLabel(loc, action, item.Args...)))
+	}
+	return strings.Join(parts, "  ")
+}
+
+func helpBar(items ...string) string {
 	var parts []string
 	for _, item := range items {
 		idx := strings.Index(item, " ")
 		if idx > 0 {
-			parts = append(parts, renderKey(item[:idx])+" "+descStyle.Render(item[idx+1:]))
+			parts = append(parts, renderHelpItem(item[:idx], item[idx+1:]))
 		} else {
-			parts = append(parts, descStyle.Render(item))
+			parts = append(parts, renderHelpItem("", item))
 		}
 	}
 	return strings.Join(parts, "  ")
@@ -924,6 +1002,21 @@ func helpBar(items ...string) string {
 
 func bold(s string) string {
 	return lipgloss.NewStyle().Bold(true).Render(s)
+}
+
+func joinInlineParts(rtl bool, parts ...string) string {
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if strings.TrimSpace(part) != "" {
+			filtered = append(filtered, part)
+		}
+	}
+	if rtl {
+		for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
+			filtered[i], filtered[j] = filtered[j], filtered[i]
+		}
+	}
+	return strings.Join(filtered, "  ")
 }
 
 // rtlAlignBlock right-aligns every line of s to width when the caller is in

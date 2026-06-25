@@ -26,6 +26,7 @@ func main() {
 
 	logutil.Info("%s", version.String())
 	logutil.Debug("verbose logging enabled")
+	tui.SetNativeGamepadEnabled(os.Getenv("ZTUTOR_GAMEPAD") != "0")
 
 	dataDir := envOrDefault("ZTUTOR_DATA_DIR", defaultDataDir())
 	logutil.Debug("data dir: %s", dataDir)

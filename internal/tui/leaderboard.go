@@ -60,7 +60,7 @@ func (ls *LeaderboardScreen) View() string {
 	if len(ls.entries) == 0 {
 		b.WriteString(dim(T("leaderboard.empty")))
 		b.WriteString("\n\n")
-		b.WriteString(helpBar(T("help.q_back")))
+		b.WriteString(actionHelpBar(ls.loc, HA(ActionBack)))
 		result := b.String()
 		return rtlWrap(ls.loc.IsRTL(), result, ls.Width)
 	}
@@ -121,7 +121,7 @@ func (ls *LeaderboardScreen) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(helpBar(T("help.q_back")))
+	b.WriteString(actionHelpBar(ls.loc, HA(ActionBack)))
 	result := b.String()
 	return rtlWrap(ls.loc.IsRTL(), result, ls.Width)
 }

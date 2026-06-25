@@ -17,8 +17,9 @@ import (
 type Section struct {
 	ID             string
 	Title          string
-	Type           string // "exercises", "interviews", "exams", "challenges"
+	Type           string // "exercises", "interviews", "quizzes", "exams", "challenges"
 	Lessons        []Lesson
+	Quizzes        []Quiz
 	Challenges     []Challenge
 	AvailableTools []string
 	Schedule       string
@@ -35,6 +36,7 @@ type Course struct {
 	HasFreemium     bool
 	TotalLessons    int
 	TotalChallenges int
+	TotalQuizzes    int
 
 	SourceExtension      string
 	SyntaxHighlighting   string
@@ -192,6 +194,7 @@ func LoadCourseLang(courseDir, lang string) (Course, error) {
 		}
 		applyLanguageToSection(s, c.Language, c.SourceExtension, c.SyntaxHighlighting)
 		c.TotalLessons += len(s.Lessons)
+		c.TotalQuizzes += len(s.Quizzes)
 		c.TotalChallenges += len(s.Challenges)
 		for i := range s.Lessons {
 			l := &s.Lessons[i]
@@ -246,12 +249,18 @@ func loadSection(dir string, s *Section, lang string) {
 		logutil.Warn("course: section dir missing: %s", dir)
 		return
 	}
-	if s.Type == "challenges" {
+	switch s.Type {
+	case "challenges":
 		challenges, err := LoadChallenges(dir)
 		if err == nil {
 			s.Challenges = challenges
 		}
-	} else {
+	case "quizzes":
+		quizzes, err := LoadQuizzes(dir, lang)
+		if err == nil {
+			s.Quizzes = quizzes
+		}
+	default:
 		lessons, err := LoadAllLang(dir, lang)
 		if err == nil {
 			s.Lessons = lessons

@@ -162,7 +162,7 @@ func (s *SettingsScreen) View() string {
 	}
 
 	b.WriteString("\n\n")
-	b.WriteString(helpBar(T("settings.help.toggle"), T("help.q_back")))
+	b.WriteString(actionHelpBar(s.loc, HA(ActionToggleSettings), HA(ActionBack)))
 	return rtlWrap(s.loc.IsRTL(), b.String(), s.Width)
 }
 

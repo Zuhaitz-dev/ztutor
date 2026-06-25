@@ -101,7 +101,7 @@ func (as *AchievementScreen) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(helpBar(T("help.q_back")))
+	b.WriteString(actionHelpBar(as.loc, HA(ActionBack)))
 	result := b.String()
 	return rtlWrap(as.loc.IsRTL(), result, as.Width)
 }

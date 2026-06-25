@@ -1,0 +1,110 @@
+id: 05-hello-world-review
+title: Hello World Review
+title_i18n:
+  es: Repaso de Hello World
+  zh: Hello World 复习
+  ar: مراجعة Hello World
+description: Check the core ideas shared by the four starter programs.
+description_i18n:
+  es: Comprueba las ideas centrales compartidas por los cuatro programas iniciales.
+  zh: 检查四个入门程序共有的核心概念。
+  ar: تحقق من الأفكار الأساسية المشتركة بين برامج البداية الأربعة.
+difficulty: beginner
+tags: [starter, hello-world, concepts]
+questions:
+  - id: q1
+    kind: single_choice
+    prompt: What was the shared goal of the C, Python, Go, and Rust starter exercises?
+    prompt_i18n:
+      es: ¿Cuál era el objetivo común de los ejercicios iniciales en C, Python, Go y Rust?
+      zh: C、Python、Go 和 Rust 入门练习的共同目标是什么？
+      ar: ما الهدف المشترك لتمارين البداية في C وPython وGo وRust؟
+    options:
+      - id: a
+        text: Print the text "hello world"
+        text_i18n:
+          es: Imprimir el texto "hello world"
+          zh: 输出文本 "hello world"
+          ar: طباعة النص "hello world"
+        correct: true
+      - id: b
+        text: Read a file from disk
+        text_i18n:
+          es: Leer un archivo del disco
+          zh: 从磁盘读取文件
+          ar: قراءة ملف من القرص
+      - id: c
+        text: Build a web server
+        text_i18n:
+          es: Crear un servidor web
+          zh: 构建一个 Web 服务器
+          ar: بناء خادم ويب
+    explanation: The starter course compares four ways to produce the same visible output.
+    explanation_i18n:
+      es: El curso inicial compara cuatro formas de producir la misma salida visible.
+      zh: 入门课程比较了四种生成相同可见输出的方法。
+      ar: تقارن دورة البداية أربع طرق لإنتاج نفس الخرج المرئي.
+  - id: q2
+    kind: single_choice
+    prompt: Which detail matters to the judge when checking "hello world" output?
+    prompt_i18n:
+      es: ¿Qué detalle importa al juez al comprobar la salida "hello world"?
+      zh: 检查 "hello world" 输出时，判题器关心哪个细节？
+      ar: ما التفصيل المهم للمصحح عند فحص خرج "hello world"؟
+    options:
+      - id: a
+        text: The exact text that the program prints
+        text_i18n:
+          es: El texto exacto que imprime el programa
+          zh: 程序打印的精确文本
+          ar: النص الدقيق الذي يطبعه البرنامج
+        correct: true
+      - id: b
+        text: The color of the terminal
+        text_i18n:
+          es: El color de la terminal
+          zh: 终端的颜色
+          ar: لون الطرفية
+      - id: c
+        text: The name of the source file only
+        text_i18n:
+          es: Solo el nombre del archivo fuente
+          zh: 只有源文件名
+          ar: اسم ملف المصدر فقط
+    explanation: The practical exercises compare program output, so spelling and line endings matter.
+    explanation_i18n:
+      es: Los ejercicios prácticos comparan la salida del programa, así que la escritura y los saltos de línea importan.
+      zh: 实践练习会比较程序输出，所以拼写和换行很重要。
+      ar: تقارن التمارين العملية خرج البرنامج، لذلك تهم الكتابة ونهايات الأسطر.
+  - id: q3
+    kind: single_choice
+    prompt: Why is it useful to see the same small program in several programming languages?
+    prompt_i18n:
+      es: ¿Por qué es útil ver el mismo programa pequeño en varios lenguajes de programación?
+      zh: 为什么用多种编程语言查看同一个小程序很有用？
+      ar: لماذا من المفيد رؤية نفس البرنامج الصغير بعدة لغات برمجة؟
+    options:
+      - id: a
+        text: It makes syntax and tooling differences easier to compare
+        text_i18n:
+          es: Hace más fácil comparar diferencias de sintaxis y herramientas
+          zh: 这样更容易比较语法和工具差异
+          ar: يجعل مقارنة اختلافات الصياغة والأدوات أسهل
+        correct: true
+      - id: b
+        text: It proves every language is identical
+        text_i18n:
+          es: Demuestra que todos los lenguajes son idénticos
+          zh: 它证明所有语言都完全相同
+          ar: يثبت أن كل اللغات متطابقة
+      - id: c
+        text: It removes the need to run the programs
+        text_i18n:
+          es: Elimina la necesidad de ejecutar los programas
+          zh: 它让你不再需要运行程序
+          ar: يلغي الحاجة إلى تشغيل البرامج
+    explanation: The output is the same, but the syntax, file extension, build step, and runtime habits differ.
+    explanation_i18n:
+      es: La salida es la misma, pero cambian la sintaxis, la extensión del archivo, el paso de compilación y los hábitos de ejecución.
+      zh: 输出相同，但语法、文件扩展名、构建步骤和运行习惯不同。
+      ar: الخرج هو نفسه، لكن الصياغة وامتداد الملف وخطوة البناء وعادات التشغيل تختلف.

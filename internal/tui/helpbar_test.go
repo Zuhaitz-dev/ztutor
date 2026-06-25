@@ -49,6 +49,21 @@ func TestHelpBar_ItemWithNoSpaceHasNoKeyPill(t *testing.T) {
 	}
 }
 
+func TestActionHelpBar_UsesRegistryKeys(t *testing.T) {
+	loc := i18n.New("en")
+
+	out := actionHelpBar(loc, HA(ActionExerciseBack), HA(ActionMenuBack), HA(ActionRun))
+
+	for _, want := range []string{"Ctrl+Q", "b", "Ctrl+S"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("actionHelpBar output %q does not contain registry key %q", out, want)
+		}
+	}
+	if strings.Contains(out, "^Q") || strings.Contains(out, "^S") {
+		t.Fatalf("actionHelpBar output %q leaked legacy locale key prefixes", out)
+	}
+}
+
 // helpBarKeys is the authoritative list of locale keys whose values are fed to
 // helpBar(). Every value must have a space at index > 0 so helpBar can extract
 // the key portion and render it as a pill. Add new keys here when you add them

@@ -279,6 +279,8 @@ func NewExerciseScreen(l lesson.Lesson, lang sandbox.Language, executor sandbox.
 	return es
 }
 
+func (es *ExerciseScreen) SetHasGamepad(v bool) { es.kbOverlay.SetHasGamepad(v) }
+
 func editorWidth(totalW int, asmVisible bool) int {
 	if asmVisible {
 		// Left half minus line-number gutter
@@ -1322,7 +1324,7 @@ func (es *ExerciseScreen) View() string {
 	})
 
 	l.AddFixed("helpbar", nil, func(w int) string {
-		return es.compositor.HelpBar(es.passed, es.running, es.fileList != nil && es.fileList.Available(), T)
+		return es.compositor.HelpBar(es.passed, es.running, es.fileList != nil && es.fileList.Available(), es.loc)
 	})
 
 	return l.Render()

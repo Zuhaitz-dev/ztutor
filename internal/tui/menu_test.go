@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"ztutor/internal/i18n"
 	"ztutor/internal/lesson"
 	"ztutor/internal/license"
 )
@@ -15,15 +16,19 @@ func TestSectionCounts(t *testing.T) {
 		Sections: []lesson.Section{
 			{Type: "exercises", Lessons: []lesson.Lesson{{ID: "l1"}, {ID: "l2"}}},
 			{Type: "interviews", Lessons: []lesson.Lesson{{ID: "i1"}}},
+			{Type: "quizzes", Quizzes: []lesson.Quiz{{ID: "q1"}}},
 			{Type: "challenges", Challenges: []lesson.Challenge{{ID: "c1"}, {ID: "c2"}}},
 		},
 	}
-	lessons, interviews, challenges := sectionCounts(c)
+	lessons, interviews, quizzes, challenges := sectionCounts(c)
 	if lessons != 2 {
 		t.Errorf("lessons = %d, want 2", lessons)
 	}
 	if interviews != 1 {
 		t.Errorf("interviews = %d, want 1", interviews)
+	}
+	if quizzes != 1 {
+		t.Errorf("quizzes = %d, want 1", quizzes)
 	}
 	if challenges != 2 {
 		t.Errorf("challenges = %d, want 2", challenges)
@@ -156,11 +161,31 @@ func TestRenderCourseLine_CompactsSegmentsBeforeOverflow(t *testing.T) {
 	}
 }
 
+func TestRenderCourseLine_RTLReversesInlineOrder(t *testing.T) {
+	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, i18n.New("ar"), 80, 24)
+	course := lesson.Course{
+		ID:                   "starter",
+		Title:                "Starter",
+		Language:             "c",
+		ProgrammingLanguages: []string{"c", "python"},
+		UILanguages:          []string{"en", "ar"},
+		Sections: []lesson.Section{{
+			Type:    "exercises",
+			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
+		}},
+	}
+	line := stripANSI(m.renderCourseLine(course, 80))
+	if !(strings.Index(line, "{en·ar}") < strings.Index(line, "{ C · Python }") &&
+		strings.Index(line, "{ C · Python }") < strings.Index(line, "Starter")) {
+		t.Fatalf("rtl course line order should place title last in the inline sequence, got %q", line)
+	}
+}
+
 func TestSectionCounts_Empty(t *testing.T) {
 	c := &lesson.Course{}
-	lessons, interviews, challenges := sectionCounts(c)
-	if lessons != 0 || interviews != 0 || challenges != 0 {
-		t.Errorf("empty course should have 0 counts: l=%d i=%d c=%d", lessons, interviews, challenges)
+	lessons, interviews, quizzes, challenges := sectionCounts(c)
+	if lessons != 0 || interviews != 0 || quizzes != 0 || challenges != 0 {
+		t.Errorf("empty course should have 0 counts: l=%d i=%d q=%d c=%d", lessons, interviews, quizzes, challenges)
 	}
 }
 
@@ -172,6 +197,10 @@ func TestCourseProgressCounts(t *testing.T) {
 				Lessons: []lesson.Lesson{{ID: "l1"}, {ID: "l2"}, {ID: "l3"}},
 			},
 			{
+				Type:    "quizzes",
+				Quizzes: []lesson.Quiz{{ID: "q1"}},
+			},
+			{
 				Type:       "challenges",
 				Challenges: []lesson.Challenge{{ID: "c1"}},
 			},
@@ -180,14 +209,15 @@ func TestCourseProgressCounts(t *testing.T) {
 	progress := map[string]int{
 		"l1": 3,
 		"l2": 1,
+		"q1": 3,
 		"c1": 2,
 	}
 	done, total := courseProgressCounts(c, progress)
-	if done != 3 {
-		t.Errorf("done = %d, want 3", done)
+	if done != 4 {
+		t.Errorf("done = %d, want 4", done)
 	}
-	if total != 4 {
-		t.Errorf("total = %d, want 4", total)
+	if total != 5 {
+		t.Errorf("total = %d, want 5", total)
 	}
 }
 

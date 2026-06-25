@@ -28,8 +28,11 @@ func TestStarterCourseLoadsInAllUILanguages(t *testing.T) {
 			if len(starter.CourseIntro) == 0 {
 				t.Fatal("starter course has no localized intro")
 			}
-			if len(starter.Sections) != 1 || len(starter.Sections[0].Lessons) != 4 {
-				t.Fatalf("starter structure = %+v, want one section with four lessons", starter.Sections)
+			if len(starter.Sections) != 2 || len(starter.Sections[0].Lessons) != 4 || len(starter.Sections[1].Quizzes) != 1 {
+				t.Fatalf("starter structure = %+v, want lessons section with four lessons and quiz section with one quiz", starter.Sections)
+			}
+			if starter.TotalQuizzes != 1 {
+				t.Fatalf("starter total quizzes = %d, want 1", starter.TotalQuizzes)
 			}
 			wantProgLangs := []string{"c", "python", "go", "rust"}
 			if !reflect.DeepEqual(starter.ProgrammingLanguages, wantProgLangs) {
@@ -65,6 +68,30 @@ func TestStarterCourseLoadsInAllUILanguages(t *testing.T) {
 			}
 			if !reflect.DeepEqual(gotOrder, wantOrder) {
 				t.Fatalf("lesson order = %v, want %v", gotOrder, wantOrder)
+			}
+			quiz := starter.Sections[1].Quizzes[0]
+			if quiz.ID != "05-hello-world-review" {
+				t.Fatalf("quiz id = %q", quiz.ID)
+			}
+			if len(quiz.Questions) != 3 {
+				t.Fatalf("quiz question count = %d, want 3", len(quiz.Questions))
+			}
+			for _, q := range quiz.Questions {
+				if q.Prompt == "" || q.Explanation == "" {
+					t.Fatalf("quiz question %s missing localized prompt or explanation", q.ID)
+				}
+				correct := 0
+				for _, opt := range q.Options {
+					if opt.Text == "" {
+						t.Fatalf("quiz question %s has empty option text", q.ID)
+					}
+					if opt.Correct {
+						correct++
+					}
+				}
+				if correct != 1 {
+					t.Fatalf("quiz question %s correct option count = %d, want 1", q.ID, correct)
+				}
 			}
 		})
 	}

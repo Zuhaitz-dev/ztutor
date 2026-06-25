@@ -269,13 +269,13 @@ func (cs *ChallengeScreen) View() string {
 	})
 
 	l.AddFixed("helpbar", nil, func(w int) string {
-		var row1 []string
+		var row1 []HelpAction
 		if cs.submitted {
-			row1 = []string{cs.loc.T("challenge.help.back")}
+			row1 = []HelpAction{HA(ActionChallengeBack)}
 		} else {
-			row1 = []string{cs.loc.T("challenge.help.submit"), cs.loc.T("exercise.help.back"), cs.loc.T("help.mochi")}
+			row1 = []HelpAction{HA(ActionSubmit), HA(ActionExerciseBack), HA(ActionMochi)}
 		}
-		return helpBar(row1...)
+		return actionHelpBar(cs.loc, row1...)
 	})
 
 	result := l.Render()
@@ -294,4 +294,3 @@ func fmtDuration(d time.Duration) string {
 	days := int(d.Hours() / 24)
 	return fmt.Sprintf("%dd", days)
 }
-
