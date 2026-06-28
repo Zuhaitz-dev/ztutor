@@ -40,7 +40,7 @@ jobs:
       - name: Package
         run: |
           ARCHIVE=ztutor-${{ github.ref_name }}-linux-${{ matrix.goarch }}.tar.gz
-          tar -czf "${ARCHIVE}" ztutor ztutord ztutor.service README.md LICENSE LICENSE-COMMERCIAL courses/ztutor-starter
+          tar -czf "${ARCHIVE}" ztutor ztutord ztutor.service README.md LICENSE LICENSE-COMMERCIAL courses/c-programming
           echo "ARCHIVE=${ARCHIVE}" >> $GITHUB_ENV
 
       - name: Upload to release
