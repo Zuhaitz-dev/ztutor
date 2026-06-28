@@ -90,8 +90,10 @@ menu.chip_lessons: "%d 节课"
 menu.chip_interviews: "%d 次面试"
 menu.chip_quizzes: "%d 个测验"
 menu.chip_challenges: "%d 道挑战"
+menu.tag_encrypted: "[已加密]"
 menu.tag_freemium: "[部分免费]"
 menu.tag_locked: "[已锁定]"
+menu.tag_missing: "[未安装]"
 
 # Mochi 吉祥物台词
 mochi.konami: "秘籍已接受。三十年的肌肉记忆，你打得完美无缺。Mochi 印象深刻。"

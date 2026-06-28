@@ -332,10 +332,9 @@ Student code runs under the following limits:
 |-------|-------|
 | Run timeout | 5 seconds |
 | Compile timeout | 10 seconds |
-| Memory (RLIMIT_AS) | 128 MB |
 | Max file size (RLIMIT_FSIZE) | 8 MB |
 | File descriptors (RLIMIT_NOFILE) | 64 |
-| Max processes (RLIMIT_NPROC) | 8 |
+| Core dumps (RLIMIT_CORE) | disabled |
 | Namespace isolation (Linux only) | user, mount, network, PID |
 
 Namespace isolation is enabled automatically when the host kernel supports it. Set `ZTUTOR_NO_NAMESPACES=1` to disable it for containers that do not allow unprivileged namespaces.

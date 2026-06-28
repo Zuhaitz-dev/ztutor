@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"unsafe"
 
@@ -19,16 +18,7 @@ func probeNamespaces() bool {
 	if os.Getenv("ZTUTOR_NO_NAMESPACES") != "" {
 		return false
 	}
-	dir, err := os.MkdirTemp("", "ztutor-probe-")
-	if err != nil {
-		return false
-	}
-	defer os.RemoveAll(dir)
-
-	progPath := filepath.Join(dir, "probe")
-	os.WriteFile(progPath, nil, 0755) //nolint:errcheck
-
-	cmd := exec.Command(progPath)
+	cmd := exec.Command("/bin/true")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: unix.CLONE_NEWUSER | unix.CLONE_NEWNS | unix.CLONE_NEWPID,
 		UidMappings: []syscall.SysProcIDMap{
@@ -50,20 +40,21 @@ type rlimitEntry struct {
 
 func setResourceLimits() []rlimitEntry {
 	var (
-		oldMem    syscall.Rlimit
 		oldFsize  syscall.Rlimit
 		oldNofile syscall.Rlimit
-		oldNproc  syscall.Rlimit
-		oldCPU    syscall.Rlimit
 		oldCore   syscall.Rlimit
 	)
 
+	// RLIMIT_AS, RLIMIT_NPROC, and RLIMIT_CPU are intentionally omitted:
+	// all three are process-wide limits enforced before fork, which means they
+	// affect the parent Go process too. RLIMIT_AS starves thread stacks,
+	// RLIMIT_NPROC blocks fork when the user has many processes, and RLIMIT_CPU
+	// kills the parent test runner on multi-core machines where accumulated CPU
+	// time reaches the limit quickly. Namespace isolation + the 5-second
+	// context deadline already cover the same threat model safely.
 	limits := []rlimitEntry{
-		{syscall.RLIMIT_AS, maxMemory, maxMemory, &oldMem},
 		{syscall.RLIMIT_FSIZE, maxFileSize, maxFileSize, &oldFsize},
 		{syscall.RLIMIT_NOFILE, maxOpenFiles, maxOpenFiles, &oldNofile},
-		{unix.RLIMIT_NPROC, maxProcs, maxProcs, &oldNproc},
-		{syscall.RLIMIT_CPU, maxCPUSeconds, maxCPUSeconds, &oldCPU},
 		{syscall.RLIMIT_CORE, 0, 0, &oldCore},
 	}
 

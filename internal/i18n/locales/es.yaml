@@ -90,8 +90,10 @@ menu.chip_lessons: "%d lecciones"
 menu.chip_interviews: "%d entrevistas"
 menu.chip_quizzes: "%d cuestionarios"
 menu.chip_challenges: "%d desafíos"
+menu.tag_encrypted: "[cifrado]"
 menu.tag_freemium: "[freemium]"
 menu.tag_locked: "[bloqueado]"
+menu.tag_missing: "[no instalado]"
 
 # Líneas de la mascota Mochi
 mochi.konami: "CÓDIGO TRAMPA ACEPTADO. Treinta años de memoria muscular y lo escribiste perfectamente. Mochi está impresionado."

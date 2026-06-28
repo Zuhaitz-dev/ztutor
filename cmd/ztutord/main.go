@@ -158,7 +158,7 @@ func main() {
 		case err := <-errCh:
 			logutil.Fatal("server: %v", err)
 		}
-		runLocalControl(srv, dbPath, lic, lessonsDir, coursesDir, achievementsFile)
+		runLocalControl(srv, dbPath, lic, lessonsDir, coursesDir, achievementsFile, cfg.Keymap)
 		srv.Shutdown(ctx)
 	} else {
 		select {
@@ -185,7 +185,7 @@ func envOrDefault(key, fallback string) string {
 	return fallback
 }
 
-func runLocalControl(srv *ssh.Server, dbPath string, lic *license.State, lessonsDir, coursesDir, achievementsFile string) {
+func runLocalControl(srv *ssh.Server, dbPath string, lic *license.State, lessonsDir, coursesDir, achievementsFile, keymap string) {
 	localDB, err := db.Open(dbPath)
 	if err != nil {
 		logutil.Error("local admin: open db: %v", err)
@@ -205,9 +205,29 @@ func runLocalControl(srv *ssh.Server, dbPath string, lic *license.State, lessons
 	}
 
 	username := adminUsername()
-	app := tui.NewAdminApp(username, localDB, lic, lessonsDir, coursesDir, achievementsFile, width, height)
-	if _, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
-		logutil.Error("local admin TUI: %v", err)
+	showAdmin := true
+	for {
+		if showAdmin {
+			app := tui.NewAdminApp(username, localDB, lic, lessonsDir, coursesDir, achievementsFile, width, height)
+			if _, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
+				logutil.Error("local admin TUI: %v", err)
+				return
+			}
+			if !app.WantsRelaunch() {
+				return
+			}
+			showAdmin = false
+		} else {
+			app := tui.NewApp(username, coursesDir, lessonsDir, localDB, lic, width, height, keymap, nil, nil)
+			if _, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
+				logutil.Error("local student TUI: %v", err)
+				return
+			}
+			if !app.WantsRelaunch() {
+				return
+			}
+			showAdmin = true
+		}
 	}
 }
 
