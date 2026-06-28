@@ -251,7 +251,8 @@ func startSession(t *testing.T, addr, user, pass string) *gossh.Client {
 		t.Fatalf("new session: %v", err)
 	}
 	if err := sess.RequestPty("xterm", 24, 80, gossh.TerminalModes{}); err != nil {
-		sess.Close(); client.Close()
+		sess.Close()
+		client.Close()
 		t.Fatalf("RequestPty: %v", err)
 	}
 	// Shell request triggers the TUI constructor; ignore error — dummyModel

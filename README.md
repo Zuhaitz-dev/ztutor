@@ -322,7 +322,7 @@ Namespace isolation is enabled automatically when the host kernel supports it. S
 make build       # production binary with version info
 make dev         # development mode (go run)
 make test        # run all tests
-make lint        # run staticcheck
+make lint        # run gofmt check and go vet
 make clean       # remove binary and database
 ```
 

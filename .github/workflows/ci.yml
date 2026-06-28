@@ -29,11 +29,11 @@ jobs:
           path: /go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
 
-      - name: Vet
-        run: go vet ./...
+      - name: Lint
+        run: make lint
 
       - name: Test
-        run: go test ./...
+        run: make test
 
       - name: Build
         run: make build

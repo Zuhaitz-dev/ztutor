@@ -45,6 +45,12 @@ var rainAnsiPfx []string
 
 const ansiReset = "\033[0m"
 
+// forceLTRText wraps a fragment in LTR marks so BiDi-aware terminals keep its
+// internal ordering stable when embedded inside RTL text.
+func forceLTRText(s string) string {
+	return ltrMarker + s + ltrMarker
+}
+
 func init() {
 	rainAnsiPfx = make([]string, len(rainGradient))
 	for i, color := range rainGradient {
@@ -117,7 +123,7 @@ func (c *rainCol) renderAt(row int) string {
 	if idx >= len(rainAnsiPfx) {
 		idx = len(rainAnsiPfx) - 1
 	}
-	return rainAnsiPfx[idx] + string(ch) + ansiReset
+	return rainAnsiPfx[idx] + forceLTRText(string(ch)) + ansiReset
 }
 
 // ── Navigation message types ──────────────────────────────────────────────────
@@ -1177,7 +1183,7 @@ func (m *MenuScreen) View() string {
 	b.WriteString(alignR(dim(statsLine)) + "\n")
 
 	// Language-aware cycling snippet.
-	b.WriteString(alignR(codeStyle("$ " + m.currentSnippet())) + "\n")
+	b.WriteString(alignR(codeStyle("$ "+m.currentSnippet())) + "\n")
 
 	// Spaced-repetition hint.
 	if s := m.suggestedLesson(); s != nil {
@@ -1528,9 +1534,9 @@ func (m *MenuScreen) renderSectionTabs() string {
 			title = sec.Type
 		}
 		if i == m.sectionIndex {
-			tabs = append(tabs, activeStyle.Render("[" + title + "]"))
+			tabs = append(tabs, activeStyle.Render("["+title+"]"))
 		} else {
-			tabs = append(tabs, inactiveStyle.Render("<" + title + ">"))
+			tabs = append(tabs, inactiveStyle.Render("<"+title+">"))
 		}
 	}
 	return strings.Join(tabs, " ")

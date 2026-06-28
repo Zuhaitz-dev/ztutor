@@ -13,8 +13,8 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"time"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"ztutor/internal/db"
@@ -96,9 +96,9 @@ func New(cfg Config, tui *TUIProvider) (*Server, error) {
 	}
 
 	return &Server{
-		config: cfg,
-		tui:    tui,
-		db:     database,
+		config:  cfg,
+		tui:     tui,
+		db:      database,
 		stopCh:  make(chan struct{}),
 		readyCh: make(chan struct{}),
 	}, nil

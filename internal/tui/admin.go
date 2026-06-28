@@ -657,7 +657,7 @@ func (m *adminDashboardModel) View() string {
 
 	licInfo := bold(T("admin.license"))
 	if m.lic != nil && m.lic.Licensed {
-		licInfo += " " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Render(m.lic.Licensee)
+		licInfo += " " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Render(forceLTRText(m.lic.Licensee))
 		if m.lic.MaxStudents > 0 {
 			atCap := studentCount >= m.lic.MaxStudents
 			capStr := T("admin.seats", studentCount, m.lic.MaxStudents)
@@ -668,7 +668,7 @@ func (m *adminDashboardModel) View() string {
 			}
 		}
 		if !m.lic.ExpiresAt.IsZero() {
-			licInfo += "\n  " + T("admin.expires", m.lic.ExpiresAt.Format("2006-01-02"))
+			licInfo += "\n  " + T("admin.expires", forceLTRText(m.lic.ExpiresAt.Format("2006-01-02")))
 		}
 		var feats []string
 		if len(m.lic.UnlockedCourses) > 0 {
@@ -678,7 +678,7 @@ func (m *adminDashboardModel) View() string {
 			feats = append(feats, "multi-user")
 		}
 		if len(feats) > 0 {
-			licInfo += "\n  " + T("admin.features", strings.Join(feats, ", "))
+			licInfo += "\n  " + T("admin.features", forceLTRText(strings.Join(feats, ", ")))
 		}
 	} else {
 		licInfo += " " + dim(T("admin.free_tier"))

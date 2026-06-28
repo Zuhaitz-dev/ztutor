@@ -373,4 +373,3 @@ func TestStarsStyle_ExercisePartial(t *testing.T) {
 		t.Errorf("starsStyle(1,3) should show empty stars, got %q", stripANSI(s))
 	}
 }
-

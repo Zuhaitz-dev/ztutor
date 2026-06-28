@@ -80,6 +80,43 @@ func TestAdminDashboard_View_WithLicense(t *testing.T) {
 	}
 }
 
+func TestRainCol_RenderAt_WrapsGlyphWithLTRMarkers(t *testing.T) {
+	col := rainCol{
+		head:  0,
+		speed: 1,
+		trail: 5,
+		chars: []rune{'<'},
+	}
+
+	got := col.renderAt(0)
+	if !strings.Contains(got, ltrMarker+"<"+ltrMarker) {
+		t.Fatalf("renderAt should wrap rain glyphs with LTR markers, got %q", got)
+	}
+}
+
+func TestAdminDashboard_View_ArabicLicenseeUsesLTRIsolation(t *testing.T) {
+	database := testDB(t)
+	loc := i18n.New("ar")
+
+	lic := &license.State{
+		Licensed:        true,
+		Licensee:        "Test School",
+		MaxStudents:     50,
+		UnlockedCourses: []string{"c1"},
+		HasMultiUser:    true,
+	}
+
+	m := newAdminDashboard(database, lic, loc, 80, 24)
+	view := m.View()
+
+	if !strings.Contains(view, forceLTRText("Test School")) {
+		t.Fatalf("arabic dashboard should isolate licensee as LTR, got %q", view)
+	}
+	if !strings.Contains(view, forceLTRText("premium, multi-user")) {
+		t.Fatalf("arabic dashboard should isolate feature list as LTR, got %q", view)
+	}
+}
+
 func TestAdminDashboard_View_FlashError(t *testing.T) {
 	database := testDB(t)
 	_ = database.CreateUser("alice", "pw", db.RoleStudent)

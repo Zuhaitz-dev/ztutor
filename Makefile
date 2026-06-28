@@ -6,22 +6,30 @@ GOFLAGS := -buildvcs=false
 LDFLAGS := -X ztutor/internal/version.Version=$(VERSION) \
            -X ztutor/internal/version.Commit=$(COMMIT) \
            -X ztutor/internal/version.BuildDate=$(DATE)
+GOCACHE_DIR := $(CURDIR)/.cache/go-build
+GO := GOCACHE=$(GOCACHE_DIR) go
+GOFMT := gofmt
+GOFILES := $(shell find . -type f -name '*.go' -not -path './vendor/*')
+STATICCHECK := $(or $(shell command -v staticcheck 2>/dev/null),$(shell go env GOPATH)/bin/staticcheck)
 
-.PHONY: build build-client build-server build-licensegen build-coursepack build-full docker docker-push run run-server clean reset dev dev-server tuitest test vet lint manifest verify
+.PHONY: build build-client build-server build-licensegen build-coursepack build-full docker docker-push run run-server clean reset dev dev-server tuitest test vet fmt lint lint-fmt lint-vet lint-staticcheck manifest verify
 
 build: build-client build-server
 
-build-client:
-	go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutor ./cmd/ztutor/
+$(GOCACHE_DIR):
+	mkdir -p $@
 
-build-server:
-	go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutord ./cmd/ztutord/
+build-client: | $(GOCACHE_DIR)
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutor ./cmd/ztutor/
 
-build-licensegen:
-	go build $(GOFLAGS) -o licensegen ./cmd/licensegen/
+build-server: | $(GOCACHE_DIR)
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutord ./cmd/ztutord/
 
-build-coursepack:
-	go build $(GOFLAGS) -o coursepack ./cmd/coursepack/
+build-licensegen: | $(GOCACHE_DIR)
+	$(GO) build $(GOFLAGS) -o licensegen ./cmd/licensegen/
+
+build-coursepack: | $(GOCACHE_DIR)
+	$(GO) build $(GOFLAGS) -o coursepack ./cmd/coursepack/
 
 build-full: build-client build-server build-licensegen build-coursepack
 
@@ -62,22 +70,48 @@ reset: clean
 	@echo "Note: ./courses/ is preserved (course content is never removed)."
 
 dev:
-	VERSION=dev go run ./cmd/ztutor/
+	VERSION=dev $(GO) run ./cmd/ztutor/
 
 dev-server:
-	$(RUN_ENV) VERSION=dev go run ./cmd/ztutord/
+	$(RUN_ENV) VERSION=dev $(GO) run ./cmd/ztutord/
 
-tuitest:
-	go run ./cmd/tuitest/
+tuitest: | $(GOCACHE_DIR)
+	$(GO) run ./cmd/tuitest/
 
-test:
-	go test ./...
+test: | $(GOCACHE_DIR)
+	$(GO) test ./...
 
-vet:
-	go vet ./...
+vet: | $(GOCACHE_DIR)
+	$(GO) vet ./...
 
-lint:
-	staticcheck ./...
+fmt:
+	@out="$$( $(GOFMT) -w $(GOFILES) && $(GOFMT) -l $(GOFILES) )"; \
+	if [ -n "$$out" ]; then \
+		echo "gofmt left files unformatted:"; \
+		echo "$$out"; \
+		exit 1; \
+	fi
+
+lint: lint-fmt lint-vet
+
+lint-fmt:
+	@out="$$( $(GOFMT) -l $(GOFILES) )"; \
+	if [ -n "$$out" ]; then \
+		echo "gofmt needs to be run on:"; \
+		echo "$$out"; \
+		exit 1; \
+	fi
+
+lint-vet: | $(GOCACHE_DIR)
+	$(GO) vet ./...
+
+lint-staticcheck:
+	@if [ ! -x "$(STATICCHECK)" ]; then \
+		echo "staticcheck not found. Install it with:"; \
+		echo "  go install honnef.co/go/tools/cmd/staticcheck@latest"; \
+		exit 1; \
+	fi
+	$(STATICCHECK) ./...
 
 manifest:
 	@for d in courses/*/; do \
