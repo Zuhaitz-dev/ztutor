@@ -6,7 +6,7 @@ Supports C, C++, Python, Rust, Go, Ruby, and Java out of the box. Adding a new p
 
 ## How it works
 
-1. The server administrator runs `ztutord` on a Linux machine.
+1. The server administrator runs `ztutord` on a Linux or macOS machine.
 2. Students connect over SSH -- no client software required.
 3. Students read lessons, write code in the built-in editor, and submit for immediate feedback.
 4. Code runs in a sandbox with resource limits and namespace isolation.
@@ -48,7 +48,7 @@ The SSH server still starts in the background so students can connect while you 
 
 Press `q` or `Ctrl+C` in the local interface to exit; the SSH server shuts down cleanly.
 
-The included `courses/c-programming` course ships 15 free lessons covering C foundations (Module 1). No C experience needed — prior programming experience in any language is assumed. Students can start immediately without a license. Additional modules and premium content can be distributed as `.course` packages placed in the `courses/` directory. If `courses/` is empty or not mounted, the app starts with an empty course menu.
+The included `courses/c-programming` course ships 15 free lessons covering C foundations (Module 1). No C experience needed; prior programming experience in any language is assumed. Students can start immediately without a license. Additional modules and premium content can be distributed as `.course` packages placed in the `courses/` directory. If `courses/` is empty or not mounted, the app starts with an empty course menu.
 
 ### Local controller support (Linux only)
 
@@ -336,7 +336,7 @@ Student code runs under the following limits:
 | Max file size (RLIMIT_FSIZE) | 8 MB |
 | File descriptors (RLIMIT_NOFILE) | 64 |
 | Max processes (RLIMIT_NPROC) | 8 |
-| Linux namespace isolation | user, mount, network, PID |
+| Namespace isolation (Linux only) | user, mount, network, PID |
 
 Namespace isolation is enabled automatically when the host kernel supports it. Set `ZTUTOR_NO_NAMESPACES=1` to disable it for containers that do not allow unprivileged namespaces.
 
@@ -383,7 +383,7 @@ ztutor/
 - [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) -- pure-Go SQLite (no cgo required)
 - golang.org/x/crypto/ssh -- SSH server
 - Ed25519 -- license key signing and course package signing
-- Linux namespaces -- sandbox isolation
+- Linux namespaces -- sandbox isolation (Linux only; macOS runs without namespace isolation)
 
 ## License
 
