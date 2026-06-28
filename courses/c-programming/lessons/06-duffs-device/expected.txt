@@ -1,0 +1,1 @@
+[NET.LANG.C] Duff's send verification success. Output register tail value: 1983

@@ -1,0 +1,9 @@
+Make absolutely sure you indent your recipe lines with a Hard TAB, not spaces! Make will throw a "missing separator" error if you use spaces.
+---
+For the linking rule (making the executable from `.o` files), use:
+	$(REDIS_LD) -o $@ $^
+---
+For the compilation rule (making `.o` files from `.c` files), use:
+	$(REDIS_CC) -MMD -o $@ -c $<
+---
+The `.PHONY` directive should look exactly like this: `.PHONY: clean`

@@ -1,0 +1,5 @@
+libcurl uses `va_arg` (variadic arguments) extensively. The danger of this pattern is that it bypasses the compiler's type-safety checks. This is a common source of "Undefined Behavior" in C; if the option expects a pointer but you pass a literal integer, the library will attempt to dereference a garbage address, causing an immediate segmentation fault.
+---
+The `CURL` handle is a classic example of the "PIMPL" (Pointer to Implementation) pattern. By declaring `typedef struct CURL CURL;` in the public header and defining the struct members only in the library's internal `.c` files, the library maintains binary compatibility across versions.
+---
+'Heap allocation' is required for persistent state like `CURL` handles. If you declare a `CURL` session inside a function scope without a pointer, it will be destroyed when the function returns. This is why `curl_easy_init()` always returns a heap-allocated pointer (via `malloc`).

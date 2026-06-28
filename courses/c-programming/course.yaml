@@ -1,0 +1,18 @@
+id: c-programming
+title: "C: Zero to Systems Programmer"
+description: "C for developers who already code. Learn C by reading real codebases: Redis, Git, FFmpeg, and the Linux kernel. No C experience needed; prior programming experience assumed."
+language: c
+order: 0
+layout: path
+enrollment:
+  required: false
+sections:
+  - id: module-01-foundations
+    title: "Module 1: Modern Foundations"
+    type: exercises
+    dir: lessons/
+    toolchain:
+      available_tools: [compile, debug, interactive]
+toolchain:
+  source_extension: .c
+  syntax_highlighting: c

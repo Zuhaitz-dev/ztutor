@@ -1,5 +1,0 @@
-println! 是宏，不是函数——! 是它名字的一部分。
----
-println! 自动添加换行符，不需要 \n。
----
-完整修改：println!("hello world");

@@ -1,0 +1,7 @@
+To pass local project structures instead of standard libraries, apply relative quote syntax: `#include "ngircd_conn.h"`.
+---
+To address fields nested inside a standard structure variable, use the dot selector operator. For example: `client_conn.read_buffer`.
+---
+To check for line truncation, calculate the length of the string using `strlen` and verify if the last character before the null terminator is a newline `\n`. If it is missing, the input was cut short by the buffer size limit!
+---
+Always verify string contents using `strcmp(str1, str2) == 0`. Writing raw relational expressions like `if (buf == "text")` will evaluate memory pointer addresses instead of checking characters.

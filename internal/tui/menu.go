@@ -137,6 +137,7 @@ type NavigateBackToCourse struct{}
 type NavigateToConnectChoice struct{}
 
 type NavigateToLicenseEntry struct{}
+type NavigateToLicenseSummary struct{}
 
 type licenseEntryDoneMsg struct{ licState *license.State }
 

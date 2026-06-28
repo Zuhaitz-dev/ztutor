@@ -1,0 +1,2 @@
+[NVIM] Render pipeline sync: Drawing line numbers.
+[DEBUG] Return token allocated memory footprint: 1

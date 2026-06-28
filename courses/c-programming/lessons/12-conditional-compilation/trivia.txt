@@ -1,0 +1,5 @@
+Linus Torvalds is notoriously strict about not cluttering `.c` files with `#ifdef` statements. The kernel coding style explicitly dictates that conditional compilation should be handled inside `.h` header files via macro routing (like `spinlock.h`), leaving the `.c` files clean, linear, and readable.
+---
+The `do { (void)(x); } while(0)` trick is so fundamental to systems programming that the Linux kernel uses it in dozens of places to create macros that compile to nothing on a given configuration while still suppressing "unused variable" compiler warnings. You will see it throughout driver and architecture headers.
+---
+The separation of `spinlock_types.h` from `spinlock.h` is a critical architecture pattern. If a header file only needs to know the *size* of a `spinlock_t` to put it inside another struct, it includes `spinlock_types.h`. This prevents the compiler from needlessly parsing the heavy inline assembly functions found in the API headers, drastically speeding up compilation times for massive codebases.

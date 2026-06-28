@@ -273,14 +273,15 @@ var connectSnippets = []codeSnippet{
 type connectChoiceScreen struct {
 	loc *i18n.Locale
 	sized
-	cursor    int
-	codeFrame int
-	langIdx   int
-	execAddr  string // non-empty when user has configured a remote execution server
+	cursor     int
+	codeFrame  int
+	langIdx    int
+	execAddr   string // non-empty when user has configured a remote execution server
+	hasLicense bool
 }
 
-func NewConnectChoiceScreen(loc *i18n.Locale, w, h int, execAddr string) *connectChoiceScreen {
-	return &connectChoiceScreen{loc: loc, sized: sized{Width: w, Height: h}, execAddr: execAddr}
+func NewConnectChoiceScreen(loc *i18n.Locale, w, h int, execAddr string, hasLicense bool) *connectChoiceScreen {
+	return &connectChoiceScreen{loc: loc, sized: sized{Width: w, Height: h}, execAddr: execAddr, hasLicense: hasLicense}
 }
 
 func (s *connectChoiceScreen) SetLocale(loc *i18n.Locale) { s.loc = loc }
@@ -318,9 +319,9 @@ func (s *connectChoiceScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case KeyLanguage:
 			s.loc = s.loc.Next()
 		case "j", "down":
-			s.cursor = (s.cursor + 1) % 3
+			s.cursor = (s.cursor + 1) % s.optionCount()
 		case "k", "up":
-			s.cursor = (s.cursor + 2) % 3
+			s.cursor = (s.cursor + s.optionCount() - 1) % s.optionCount()
 		case "enter":
 			switch s.cursor {
 			case 0:
@@ -329,12 +330,21 @@ func (s *connectChoiceScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return s, backCmd(NavigateToLicenseEntry{})
 			case 2:
 				return s, backCmd(NavigateToRemoteConfig{})
+			case 3:
+				return s, backCmd(NavigateToLicenseSummary{})
 			}
 		case "q", "esc", "ctrl+c":
 			return s, tea.Quit
 		}
 	}
 	return s, nil
+}
+
+func (s *connectChoiceScreen) optionCount() int {
+	if s.hasLicense {
+		return 4
+	}
+	return 3
 }
 
 // renderCodePanel produces exactly `height` lines of typewriter-animated,
@@ -454,6 +464,9 @@ func (s *connectChoiceScreen) View() string {
 		{T("connect.offline"), T("connect.offline_desc")},
 		{T("connect.license"), T("connect.license_desc")},
 		{execTitle, execDesc},
+	}
+	if s.hasLicense {
+		options = append(options, struct{ title, desc string }{T("connect.license_view"), T("connect.license_view_desc")})
 	}
 
 	var b strings.Builder

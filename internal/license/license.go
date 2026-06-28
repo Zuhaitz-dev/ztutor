@@ -39,6 +39,18 @@ type State struct {
 	HasInterviewQuestions bool
 }
 
+// ProductTier classifies the currently active license into the product-facing
+// tiers used in the UI and docs.
+func (s *State) ProductTier() string {
+	if s == nil || !s.Licensed {
+		return "free"
+	}
+	if s.HasAdminUI || s.HasMultiUser {
+		return "business"
+	}
+	return "premium"
+}
+
 func (i Info) IsExpired() bool {
 	if i.ExpiresAt == "" {
 		return false

@@ -87,8 +87,8 @@ func New(cfg Config, tui *TUIProvider) (*Server, error) {
 	}
 
 	if cfg.License != nil && cfg.License.Licensed {
-		logutil.Info("license: %s (students: %d, courses=%v multi=%v admin=%v interviews=%v)",
-			cfg.License.Licensee, cfg.License.MaxStudents,
+		logutil.Info("license: %s [tier=%s students=%d courses=%v multi=%v admin=%v interviews=%v]",
+			cfg.License.Licensee, cfg.License.ProductTier(), cfg.License.MaxStudents,
 			cfg.License.UnlockedCourses, cfg.License.HasMultiUser,
 			cfg.License.HasAdminUI, cfg.License.HasInterviewQuestions)
 	} else {
@@ -187,8 +187,13 @@ func (s *Server) ListenAndServe() error {
 			logutil.Info("serving %d student(s) on %s", count, listener.Addr())
 		}
 	} else {
-		logutil.Info("no users yet — SSH with setup token: %s", s.config.SetupToken)
-		logutil.Info("  connect: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
+		if s.config.License != nil && s.config.License.HasAdminUI {
+			logutil.Info("no users yet - business setup token: %s", s.config.SetupToken)
+			logutil.Info("  connect to create the admin account: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
+		} else {
+			logutil.Info("no users yet - learner setup token: %s", s.config.SetupToken)
+			logutil.Info("  connect to create the first learner account: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
+		}
 	}
 
 	var sem chan struct{}

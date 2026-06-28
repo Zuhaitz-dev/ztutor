@@ -1,0 +1,7 @@
+To manipulate an out-of-scope or parent variable inside an explicit block layout, drop the type signifier (`int32_t`) completely. Providing a type name commands the pre-processor and compiler to construct a new separate storage slot on the stack.
+---
+Review line 25 inside `exercise.c`. Strip the type keyword from `int32_t entry_index = ...;` so it shifts from a structural redefinition into an operational state assignment.
+---
+The clean line must read exactly: `entry_index = entry_index + entry_stride;`.
+---
+Stream matching evaluates terminal responses byte for byte. Confirm that spelling rules, casing, and trailing newlines exactly reflect the expected template format.

@@ -132,6 +132,38 @@ func TestAdminDashboard_View_FlashError(t *testing.T) {
 	}
 }
 
+func TestAdminApp_FirstRunFreeModeUsesLearnerSetup(t *testing.T) {
+	database := testDB(t)
+
+	app := NewAdminApp("starter", database, nil, t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "achievements.yaml"), 80, 24)
+	view := stripANSI(app.View())
+
+	if !strings.Contains(view, "Learner username:") {
+		t.Fatalf("free first-run should use learner setup copy, got:\n%s", view)
+	}
+	if strings.Contains(view, "Admin username:") {
+		t.Fatalf("free first-run should not use admin setup copy, got:\n%s", view)
+	}
+}
+
+func TestLicenseSummaryScreen_View(t *testing.T) {
+	lic := &license.State{
+		Licensed:              true,
+		Licensee:              "Acme School",
+		UnlockedCourses:       []string{"c1"},
+		HasInterviewQuestions: true,
+	}
+
+	screen := NewLicenseSummaryScreen(testLocale(), lic, 80, 24)
+	view := stripANSI(screen.View())
+
+	for _, want := range []string{"License Summary", "Premium", "Acme School", "1 course(s)", "interviews"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("license summary missing %q, got:\n%s", want, view)
+		}
+	}
+}
+
 // ── TestAdminStudentList_View ────────────────────────────────────────────────
 
 func TestAdminStudentList_View(t *testing.T) {

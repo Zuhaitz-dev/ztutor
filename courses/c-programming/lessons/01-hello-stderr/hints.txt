@@ -1,0 +1,7 @@
+`fprintf` requires the target output stream pointer to be supplied as the primary argument. For diagnostic streams, utilize the system identifier `stderr`: `fprintf(stderr, "Your message here\n");`.
+---
+To determine divisibility constraints, use the C modulo binary operator `%`. For example: `if (current_index % progress_interval == 0)`.
+---
+Be highly meticulous with format specifiers. The `%` token signals an incoming value interpolation mapping (like `%d`). To print a literal percent sign to the terminal, you must escape it by doubling the indicator: `%%`.
+---
+ztutor tracks stream output down to the individual character byte. Verify that your brackets (`[DEBUG]`, `[PROGRESS]`), spacing, uppercase characters, and terminal newlines precisely mimic the requested instructions.

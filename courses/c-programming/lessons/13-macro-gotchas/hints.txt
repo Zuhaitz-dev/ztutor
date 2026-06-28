@@ -1,0 +1,7 @@
+The problem with `MIN(retries++, max_allowed)` is that `retries++` runs twice inside the macro expansion. You need a macro that evaluates each argument exactly once by caching them first.
+---
+GNU C statement expressions `({ ... })` let you write multi-statement blocks that return a value. The value is the last expression in the block (no semicolon on that last line). Use this to create temporaries before comparing.
+---
+Use `typeof(x)` to declare the temporary without knowing the actual type. Name them `_x` and `_y` to avoid colliding with the caller's variable names. Then assign `_x = (x)` and `_y = (y)`, evaluating each argument once.
+---
+The final line of your block should call `__cmp(min, _x, _y)` using the cached copies. That function is already defined in `minmax.h`, and it handles the actual comparison.

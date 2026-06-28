@@ -1,0 +1,5 @@
+The `EOF` constant is almost always defined as `-1` in `<stdio.h>`. Because `char` types can be signed or unsigned depending on the architecture, we always use an `int` to store the result of `getchar()`. If you used a `char`, a character with the binary value `0xFF` could be incorrectly interpreted as `EOF` on some systems!
+---
+GNU Coreutils `wc` is not just counting characters. It uses an internal `unsigned char` buffer and optimized bit-manipulation to count newlines and words, proving that even a tool as simple as `wc` is a masterclass in C stream optimization.
+---
+`feof()` is a function that checks if a file stream's end-of-file indicator is set. However, it only returns true *after* a failed read attempt. Seasoned C programmers rarely use `feof()` for loop control, preferring to rely directly on the return value of reading functions like `getc()` or `fread()`.

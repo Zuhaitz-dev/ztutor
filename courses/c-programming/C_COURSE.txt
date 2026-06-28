@@ -1,0 +1,144 @@
+COURSE MANIFEST: C PROGRAMMING - ZERO TO SYSTEMS (100 LESSONS)
+TARGET AUDIENCE: Beginners to Intermediate (Scaling to Advanced)
+TOOLCHAIN UTILIZED: gcc/clang, gdb, asan, strace, valgrind
+
+================================================================================
+MODULE 1: MODERN FOUNDATIONS (Lessons 1 - 15)
+Focus: Compiling, Types, Control Flow, and the Preprocessor
+================================================================================
+001 - Hello Standard Error: Writing to stdout vs. stderr (Syslog basics).
+002 - The Modern Integer: Why we use <stdint.h> (uint32_t, int64_t) over "int".
+003 - Scope and Shadowing: Fixing a variable shadowing bug in a mock game loop.
+004 - Standard I/O Traps: Reading continuous sensor data safely with `fgets`.
+005 - Truth and Consequences: The lack of booleans in C89 vs <stdbool.h>.
+006 - Switch Statement Fallthrough: Duff's Device and optimal switch dispatching.
+007 - For-Loops and Cache: Iterating forwards vs backwards (Timing differences).
+008 - While-Loops & EOF: Rebuilding the core of Unix `wc` from V7 source.
+009 - Functions & Call Stack: Simulating a stack overflow via infinite recursion.
+010 - Pass-by-Value limitations: Why a swap() function fails without pointers.
+011 - The C Preprocessor (Macros): Defining constants without wasting memory.
+012 - Conditional Compilation: #ifdef for cross-platform support (Linux vs Win32).
+013 - Macro Gotchas: The danger of multiple evaluations in #define MAX(a,b).
+014 - Makefiles 101: Writing rules to compile a 3-file project.
+015 - MODULE CAPSTONE: Parsing a basic Redis RESP protocol line ("+PONG\r\n").
+
+================================================================================
+MODULE 2: THE MEMORY CRUCIBLE (Lessons 16 - 35)
+Focus: Pointers, Heap Management, AddressSanitizer, and Defensive Memory
+================================================================================
+016 - Pointers as Addresses: Reading specific hex addresses (Simulated hardware).
+017 - Dereferencing: Modifying state inside a mock struct remotely.
+018 - The Void Pointer: Implementing a generic swap_any() function.
+019 - Array Decay: Proving that passing an array to a function loses its size.
+020 - Pointer Arithmetic: Navigating an array without using brackets [].
+021 - The Const Qualifier: Read-only pointers vs pointers to read-only data.
+022 - Pointers to Pointers (**ptr): Modifying a pointer's address from a function.
+023 - Stack Memory Constraints: Triggering a segfault with a 10MB local array.
+024 - Dynamic Allocation (malloc): Allocating a dynamic buffer for an image payload.
+025 - Memory Deallocation (free): Preventing the most common leak.
+026 - Zeroing Memory (calloc): Why uninitialized heap data causes non-deterministic bugs.
+027 - Resizing Data (realloc): Expanding an active connection buffer safely.
+028 - The Memory Leak Challenge: Using ASAN to find a missing free() in a linked list.
+029 - The Use-After-Free Vulnerability: Triggering and fixing a dangling pointer bug.
+030 - The Double-Free Vulnerability: Crashing the glibc heap manager safely.
+031 - Multidimensional Arrays: Navigating a 2D matrix linearly in memory.
+032 - Array of Pointers: Creating a dynamic string array (argv implementation).
+033 - Function Return Pointers: Why returning a pointer to a local stack variable is fatal.
+034 - Memory Overlap (memmove vs memcpy): Safely shifting a ring-buffer array.
+035 - MODULE CAPSTONE: Analyzing and fixing a mock OpenSSL "Heartbleed" buffer over-read.
+
+================================================================================
+MODULE 3: STRINGS & BUFFERS (Lessons 36 - 50)
+Focus: Raw Byte Arrays, Safe Parsing, and Mitigating Buffer Overflows
+================================================================================
+036 - Strings are Lies: Manually placing the '\0' null terminator.
+037 - Read-Only Literals: Why char* s = "text" segfaults on modification.
+038 - Calculating Lengths: Writing an optimized strlen() clone.
+039 - Dangerous Copies (strcpy): Exploiting a classic stack buffer overflow.
+040 - Safer Copies (strncpy): The truncation trap and why it doesn't null-terminate.
+041 - Professional Copies (strlcpy): Implementing OpenBSD's secure string copy.
+042 - Appending Strings: Why strcat() leads to Schlemiel the Painter's algorithm.
+043 - Searching Bytes (memchr/strchr): Finding the first newline in a log chunk.
+044 - Substring Search (strstr): Finding the "author" line in a Git Commit object.
+045 - String Formatting (sprintf): Why snprintf() is mandatory for safe output.
+046 - Tokenization (strtok_r): Parsing comma-separated values (CSV) safely.
+047 - String to Integer (atoi vs strtol): Why atoi() is dangerous for untrusted input.
+048 - Case Manipulation: Converting ASCII strings using bitwise XOR toggling.
+049 - Bypassing String Limits: Parsing binary payloads containing null bytes.
+050 - MODULE CAPSTONE: Extracting Host and User-Agent headers from a raw HTTP/1.1 buffer.
+
+================================================================================
+MODULE 4: STRUCTS & DATA LAYOUT (Lessons 51 - 65)
+Focus: Memory Alignment, Endianness, Bitfields, and Protocol Headers
+================================================================================
+051 - Struct Basics: Grouping user data (User ID, Name, Role).
+052 - Struct Pointers (->): Passing heavy structs by reference to avoid copying.
+053 - Typedef Patterns: Forward declarations and opaque types (Information Hiding).
+054 - Self-Referential Structs: Building a Singly-Linked List node.
+055 - Memory Alignment Rules: Why a 5-byte struct takes up 8 bytes of RAM.
+056 - Struct Padding: Rearranging members to minimize cache-line waste.
+057 - Packed Structs: Using __attribute__((packed)) for wire-protocol compatibility.
+058 - Unions: Storing an IP address as either 4 bytes or 1 uint32_t.
+059 - Type Punning: Safely casting between unrelated types using unions.
+060 - Bitwise AND/OR (&, |): Applying permission masks (e.g., chmod 755).
+061 - Bitwise XOR (^): Implementing a fast, in-place variable swap.
+062 - Bit Shifting (<<, >>): Packing RGB color values into a single hex integer.
+063 - Bitfields: Defining memory structures at the exact bit level.
+064 - Network Endianness: Converting Big-Endian network data to Little-Endian host data (ntohl).
+065 - MODULE CAPSTONE: Decoding a raw 20-byte IPv4 packet header from tcpdump.
+
+================================================================================
+MODULE 5: OS INTERFACES & I/O (Lessons 66 - 75)
+Focus: POSIX APIs, File Descriptors, and System Calls (Linux/Unix)
+================================================================================
+066 - The File Descriptor Table: Understanding stdin (0), stdout (1), stderr (2).
+067 - System Calls (open, close): Opening a file bypassing the C Standard Library.
+068 - Unbuffered I/O (read, write): Copying a file byte-by-byte via syscalls.
+069 - File Metadata (stat): Extracting file sizes and permissions.
+070 - Directory Traversal (opendir, readdir): Recursively listing a directory's contents.
+071 - Error Handling (errno): Translating system call failures using perror() and strerror().
+072 - Memory Mapped Files (mmap): Mapping a 1GB file directly into RAM instantly.
+073 - File Locking (fcntl): Preventing two processes from writing to a database simultaneously.
+074 - POSIX Signals (sigaction): Gracefully handling Ctrl+C (SIGINT) without crashing.
+075 - MODULE CAPSTONE: Writing a simplified clone of the Linux `grep` utility.
+
+================================================================================
+MODULE 6: ADVANCED CONTROL FLOW & ARCHITECTURE (Lessons 76 - 85)
+Focus: State Machines, Plugins, and Virtual Machines
+================================================================================
+076 - Function Pointers: Storing memory addresses of executable code.
+077 - Callback Patterns: Implementing an event-driven "onClick" listener in C.
+078 - Arrays of Function Pointers: Replacing giant switch statements with dispatch tables.
+079 - Finite State Machines: Building a Lexer (Tokenizer) state loop.
+080 - The Controversial Goto: Using goto strictly for kernel-style error cleanup.
+081 - Non-Local Jumps (setjmp/longjmp): Implementing Try/Catch exception handling in C.
+082 - Shared Libraries: Compiling position-independent code (-fPIC) into a .so file.
+083 - Dynamic Loading (dlopen, dlsym): Loading a shared library at runtime.
+084 - Plugin Architecture: Designing an API header for external modules to interact with.
+085 - MODULE CAPSTONE: Building a simple Bytecode VM loop (similar to SQLite VDBE/Lua).
+
+================================================================================
+MODULE 7: CONCURRENCY & THREADS (Lessons 86 - 95)
+Focus: Multiprocessing, pthreads, Synchronization, and Atomics
+================================================================================
+086 - The Process Fork (fork): Cloning an execution context. 
+087 - The Exec Family (execve): Replacing a process with a new binary (Writing a Shell).
+088 - Waiting and Zombies (waitpid): Harvesting child processes correctly.
+089 - Inter-Process Communication (pipe): Piping the output of 'ls' into 'wc'.
+090 - POSIX Threads (pthread_create): Spawning 4 parallel worker threads.
+091 - Data Races: Forcing a race condition by incrementing a shared counter simultaneously.
+092 - Mutexes (pthread_mutex): Locking critical sections to fix the data race.
+093 - Deadlocks: Intentionally creating a cyclic lock dependency and resolving it.
+094 - Condition Variables: Making a thread sleep until data arrives in a queue.
+095 - MODULE CAPSTONE: Implementing an Nginx-style Thread-Pool Worker Pattern.
+
+================================================================================
+MODULE 8: PERFORMANCE, OPTIMIZATION & SIMD (Lessons 96 - 100)
+Focus: CPU Architecture, Compilers, and Extreme Speed
+================================================================================
+096 - Cache Locality: Proving Row-Major vs Column-Major array iteration speed differences.
+097 - Strict Aliasing & `restrict`: Explaining to the compiler that pointers do not overlap.
+098 - Loop Unrolling: Helping the CPU pipeline by manually expanding tight loops.
+099 - Inline Assembly: Executing raw x86_64 `cpuid` instructions from within C.
+100 - MODULE CAPSTONE: Using SIMD Intrinsics (<immintrin.h>) to vectorize a string search.
+================================================================================

@@ -1,0 +1,5 @@
+The term "stride" in FFmpeg refers to the number of bytes between the start of one row and the start of the next. It is often larger than the image width to ensure rows are aligned to 16 or 32-byte memory boundaries for SIMD (Single Instruction, Multiple Data) optimization.
+---
+L1 cache on modern CPUs is typically only 32KB to 64KB. If your loop touches more data than that at once, you will inevitably hit the L2/L3 cache, which is much slower. This is why "tiling" algorithms (breaking images into small squares) are used in high-performance graphics engines.
+---
+This loop reordering is the single most effective "free" performance gain you can make in C. It requires zero changes to the underlying algorithm; only the way the CPU consumes the memory already in its cache lines.

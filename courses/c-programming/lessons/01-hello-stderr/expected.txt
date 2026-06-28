@@ -1,0 +1,7 @@
+[DEBUG] Scanning memory for object 1
+[DEBUG] Scanning memory for object 2
+[PROGRESS] Pack progress: 2% completed
+[DEBUG] Scanning memory for object 3
+[DEBUG] Scanning memory for object 4
+[PROGRESS] Pack progress: 4% completed
+SHA1_STREAM_BLOB: 0x7a2f5b9c

@@ -1,5 +1,0 @@
-Python 的 print() 自动添加换行符——不需要 \n。
----
-将 print() 里的字符串替换为 "hello world"。如果有 input() 调用，删除它。
----
-修改为：print("hello world")

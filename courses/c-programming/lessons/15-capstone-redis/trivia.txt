@@ -1,0 +1,5 @@
+In the real `networking.c`, Redis validates the extracted `ll` (long long) integer. If a malicious client sends `*99999999\r\n`, Redis will instantly reject the connection to prevent a Denial of Service (DoS) attack from allocating massive multi-bulk arrays and exhausting the server's RAM.
+---
+Notice that Redis uses `\r\n` (CRLF). This is the standard line terminator for almost all core internet protocols, including HTTP, SMTP (email), and FTP. 
+---
+When the entire Multi-Bulk array is parsed, Redis passes the array of strings directly to the command dispatcher (e.g., the function that actually executes `SET`). Because of this highly decoupled architecture, the command execution engine never has to worry about socket fragmentation or protocol rules; it just receives a clean array of `client->argv` pointers!

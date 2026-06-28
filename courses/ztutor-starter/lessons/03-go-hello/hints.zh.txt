@@ -1,5 +1,0 @@
-fmt.Println 自动添加换行——不需要 \n。
----
-只需修改 fmt.Println 引号内的字符串。
----
-完整修改：fmt.Println("hello world")

@@ -1,0 +1,4 @@
+Initial port=-1
+After first parse: port=8080
+After failed parse: port=8080
+After second parse: port=6379

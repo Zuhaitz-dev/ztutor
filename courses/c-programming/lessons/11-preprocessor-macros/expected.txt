@@ -1,0 +1,3 @@
+Booting router interface...
+Max connections allowed: 500
+[DEBUG] Secret diagnostic data loaded.

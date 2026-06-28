@@ -1,0 +1,5 @@
+Did you notice `#define __cmp(op, x, y) ((x) __cmp_op_##op (y) ? (x) : (y))` in your pasted code? The `##` operator is the preprocessor "token pasting" operator. When you pass `min` as the `op`, the preprocessor literally glues `__cmp_op_` and `min` together to form `__cmp_op_min`, which expands to `<`. This is how the kernel reuses the exact same logic for both `min` and `max`!
+---
+If you look closely at the full `minmax.h` file, you'll see `#define swap(a, b) do { typeof(a) __tmp = (a); ... } while (0)`. It uses the exact same `typeof()` trick to create a temporary variable for swapping values safely without knowing their data type beforehand.
+---
+While `typeof()` and statement expressions `({ })` are technically GNU extensions, they are so foundational to systems programming that Clang and almost all modern C compilers explicitly support them to ensure compatibility with the Linux Kernel. In the upcoming C23 standard, `typeof` is officially becoming a native part of the ISO C Standard!

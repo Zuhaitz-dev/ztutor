@@ -110,6 +110,25 @@ func TestCheckNoLicense(t *testing.T) {
 	}
 }
 
+func TestStateProductTier(t *testing.T) {
+	tests := []struct {
+		name string
+		in   *State
+		want string
+	}{
+		{name: "free nil", in: nil, want: "free"},
+		{name: "free unlicensed", in: &State{}, want: "free"},
+		{name: "premium", in: &State{Licensed: true}, want: "premium"},
+		{name: "business admin", in: &State{Licensed: true, HasAdminUI: true}, want: "business"},
+		{name: "business multi", in: &State{Licensed: true, HasMultiUser: true}, want: "business"},
+	}
+	for _, tt := range tests {
+		if got := tt.in.ProductTier(); got != tt.want {
+			t.Errorf("%s: ProductTier() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestCheckExpiredLicense(t *testing.T) {
 	pub, priv, err := GenerateKeyPair()
 	if err != nil {

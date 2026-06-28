@@ -1,0 +1,5 @@
+When Tom Duff first distributed his optimization code block to the computing world via email in May 1984, he included a witty note: "Many people have said that the worst feature of C is that switches don't break automatically... This code forms some sort of argument in that debate, but I'm not sure whether it's for or against."
+---
+Duff's Device functions flawlessly under C standards because the ISO specification imposes no restrictions regarding whether statement labels can be nested within nested control-flow scopes inside a `switch` body enclosure. A case marker is structurally processed as an independent assembly branch destination, letting execution jump directly into the center of loops or condition walls.
+---
+In modern production computing, manual implementation of Duff's Device is rarely required. Modern architectures use specialized Single Instruction Multiple Data (SIMD) processor operations (such as AVX or NEON instruction extensions), which allow an operating system kernel to process and copy 32 or 64 complete bytes of information in a single CPU hardware clock cycle.

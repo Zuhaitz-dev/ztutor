@@ -1,0 +1,5 @@
+The solution requires you to map layout tags in a descending progression sequence: `case 7:`, `case 6:`, down through `case 1:`. Do not inject break expressions between them; the intentional absence of a break statement allows the logic to fall through beautifully!
+---
+On every individual case entry line, add the exact code expression: `*to = *from++;`. Keep spacing, asterisks, and terminal semicolons accurate to Tom Duff's original variable names.
+---
+Yes, interweaving a `switch` boundary entry right across a `do-while` loop sequence looks completely wrong. But because C evaluates case tags as simple memory offset entry pointers inside a function stack space, it compiles cleanly.

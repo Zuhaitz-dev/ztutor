@@ -1,5 +1,0 @@
-fmt.Println añade el salto de línea automáticamente — no necesitas \n.
----
-Solo el texto dentro de fmt.Println necesita cambiar.
----
-La solución es: fmt.Println("hello world")

@@ -1,0 +1,1 @@
+[KERNEL] Success: Safe macro prevented double-evaluation.

@@ -1,0 +1,5 @@
+C stores 2D arrays in memory row-by-row. This means `image[0][0]` is right next to `image[0][1]`.
+---
+If your inner loop iterates over `col`, you are jumping thousands of bytes every step. Switch it so the inner loop iterates over the `row` dimension.
+---
+The inner loop should be the one that changes the right-most index of the array: `image[row][col]`.

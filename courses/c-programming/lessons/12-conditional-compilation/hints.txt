@@ -1,0 +1,7 @@
+Start with the Windows branch. The directive that checks for Windows is `#ifdef _WIN32`. Place it right before the `printf` that prints the `cls` message.
+---
+Add the Linux branch using `#elif __linux__` directly below the Windows printf. No `#endif` yet, you still have one more branch to go.
+---
+Add the fallback with `#else` for anything that is neither Windows nor Linux, then close the entire block with `#endif`. Every `#ifdef` or `#if` must have exactly one matching `#endif`.
+---
+The output validator is exact. Make sure your printf strings match the expected output character for character, including the `...` in each message.

@@ -1,0 +1,3 @@
+[GIT] create_delta_index processing block window at offset: 100
+[GIT] Linked entry offset to 125 inside initialization block
+[GIT] Final committed delta entry index: 125

@@ -1,0 +1,7 @@
+To instruct the preprocessor to load header structures from the same working directory instead of global environment paths, replace angle brackets with double quotes: `#include "filename.h"`.
+---
+Consult the `sqliteInt.h` layout. The explicit 8-bit unsigned type is named `u8`, the 16-bit unsigned type is named `u16`, and the 32-bit unsigned type is named `u32`.
+---
+When updating the lines, completely replace the old type specifiers (`unsigned int`, `unsigned long`). Your statements should cleanly begin with the type token, like this: `u16 reserved_space = ...;`.
+---
+ztutor tracks verification streams exactly. Verify that variable expressions, casing, bracket syntax, spacing, and output newlines completely mirror the expected layout.

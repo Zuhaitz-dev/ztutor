@@ -1,0 +1,7 @@
+To pull local structural parameters and declarations from your workspace instead of system libraries, deploy relative double quotes: `#include "types_defs.h"`.
+---
+To fix the function's structural signature contract, update the leading return type keyword prefix from `int nvim_is_line_num_active` to exactly read `bool nvim_is_line_num_active`.
+---
+Completely drop the legacy literal digits `1` and `0` inside the conditional output return blocks. Substitute them directly with the modern C99 constants `true` and `false`.
+---
+The testing runner monitors the `sizeof` output of your routine. If your code correctly handles boolean operations but still outputs a value layout width of 4 instead of 1, verify that you replaced the `int` prefix tag inside the function signature line!

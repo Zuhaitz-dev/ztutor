@@ -1,0 +1,7 @@
+To check the first unread byte, you must add `c->qb_pos` to the base pointer: `if (c->querybuf[c->qb_pos] != '*')`
+---
+To find the carriage return, use `strchr(c->querybuf + c->qb_pos, '\r')`. This ensures you are only searching the unread portion of the memory.
+---
+To advance the position tracker past the `\r\n`, you need to add the length of the integer string (`pos`) PLUS 2 (to account for the `\r` and the `\n`). So, `c->qb_pos += (pos + 2);`.
+---
+If you calculate `c->qb_pos` correctly, the very next character it points to will be the `$` marker for the first bulk string (`$3\r\nSET\r\n`).

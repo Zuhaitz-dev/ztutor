@@ -39,7 +39,7 @@ func defaultDataDir() string {
 
 func main() {
 	verbose := flag.Bool("v", false, "enable verbose debug logging")
-	localMode := flag.Bool("local", false, "open the admin dashboard in this terminal (SSH server still runs in background)")
+	localMode := flag.Bool("local", false, "open local setup or the admin dashboard in this terminal while the SSH server runs")
 	flag.Parse()
 	logutil.SetVerbose(*verbose)
 
@@ -158,7 +158,7 @@ func main() {
 		case err := <-errCh:
 			logutil.Fatal("server: %v", err)
 		}
-		runLocalAdmin(srv, dbPath, lic, lessonsDir, coursesDir, achievementsFile)
+		runLocalControl(srv, dbPath, lic, lessonsDir, coursesDir, achievementsFile)
 		srv.Shutdown(ctx)
 	} else {
 		select {
@@ -185,7 +185,7 @@ func envOrDefault(key, fallback string) string {
 	return fallback
 }
 
-func runLocalAdmin(srv *ssh.Server, dbPath string, lic *license.State, lessonsDir, coursesDir, achievementsFile string) {
+func runLocalControl(srv *ssh.Server, dbPath string, lic *license.State, lessonsDir, coursesDir, achievementsFile string) {
 	localDB, err := db.Open(dbPath)
 	if err != nil {
 		logutil.Error("local admin: open db: %v", err)
@@ -198,7 +198,11 @@ func runLocalAdmin(srv *ssh.Server, dbPath string, lic *license.State, lessonsDi
 		width, height = w, h
 	}
 
-	logutil.Info("SSH server running at %s — admin dashboard opening", srv.ListenAddr())
+	if lic != nil && lic.HasAdminUI {
+		logutil.Info("SSH server running at %s - business control opening", srv.ListenAddr())
+	} else {
+		logutil.Info("SSH server running at %s - learner setup opening", srv.ListenAddr())
+	}
 
 	username := adminUsername()
 	app := tui.NewAdminApp(username, localDB, lic, lessonsDir, coursesDir, achievementsFile, width, height)

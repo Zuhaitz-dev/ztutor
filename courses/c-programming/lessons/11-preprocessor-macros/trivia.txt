@@ -1,0 +1,5 @@
+OpenSSL uses a complex architecture of "internal" vs "public" headers. `crypto/include/internal/` contains headers that are never installed on the user's system; they are only accessible to the library itself during the build process. This prevents users from accidentally relying on internal macros that might change in future OpenSSL versions.
+---
+The `__FILE__` and `__LINE__` tokens are "predefined macros." The compiler replaces them during the preprocessing stage with the filename string and line number integer respectively. This is why you can't use them inside a normal function to find the line where the function was *called*; you must use a macro to capture that context.
+---
+`NDEBUG` is the standardized C macro for "No Debug." When the compiler is invoked with `-DNDEBUG`, the standard `assert()` macro (from `<assert.h>`) is completely disabled. Professional codebases often hook into this same macro to disable their own custom diagnostic logic.

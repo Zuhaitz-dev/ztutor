@@ -1,0 +1,11 @@
+Start with an infinite loop or a `while` loop that repeatedly reads one byte from `stdin`.
+---
+The result of `getc(stdin)` must be stored in `int`, not `char`, because you need to detect `EOF`.
+---
+The byte count increases for every successful read, including spaces, tabs, and newlines.
+---
+A word begins when you see a word character while `token` is false. At that moment, increment `wordct` and mark that you are now inside a word.
+---
+Whitespace ends a word. For this exercise, the important delimiters are space, tab, and newline.
+---
+V7 used this historical ASCII rule for word characters: `' ' < c && c < 0177`. Everything else is either delimiter or non-word noise for this lesson.

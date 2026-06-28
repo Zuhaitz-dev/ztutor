@@ -1,5 +1,0 @@
-La comparación de salida distingue mayúsculas y minúsculas: "Hello" y "hello" son distintos.
----
-Solo el texto entre las comillas de printf necesita cambiar. Deja el \n al final.
----
-La solución exacta es: printf("hello world\n");

@@ -1,0 +1,2 @@
+[REDIS-CORE] Parsed Multibulk header: 3 elements.
+[DEBUG] Next unparsed character is: '$'

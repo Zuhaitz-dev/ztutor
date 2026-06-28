@@ -1,10 +1,12 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"ztutor/internal/db"
 	"ztutor/internal/lesson"
+	"ztutor/internal/license"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -53,6 +55,36 @@ func TestAppIntroComplete_GoesToConnectChoice(t *testing.T) {
 	app.Update(introCompleteMsg{})
 	if _, ok := app.current.(*connectChoiceScreen); !ok {
 		t.Fatalf("after main intro complete, should be on connectChoiceScreen, got %T", app.current)
+	}
+}
+
+func TestConnectChoice_ShowsLicenseSummaryOptionWhenLicensed(t *testing.T) {
+	screen := NewConnectChoiceScreen(testLocale(), 80, 24, "", true)
+	view := stripANSI(screen.View())
+	if !strings.Contains(view, "View current license") {
+		t.Fatalf("licensed connect choice should show license summary option, got:\n%s", view)
+	}
+}
+
+func TestConnectChoice_HidesLicenseSummaryOptionWhenUnlicensed(t *testing.T) {
+	screen := NewConnectChoiceScreen(testLocale(), 80, 24, "", false)
+	view := stripANSI(screen.View())
+	if strings.Contains(view, "View current license") {
+		t.Fatalf("unlicensed connect choice should hide license summary option, got:\n%s", view)
+	}
+}
+
+func TestAppNavigateToLicenseSummary_ShowsSummary(t *testing.T) {
+	database := testDB(t)
+	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	lic := &license.State{Licensed: true, Licensee: "Acme"}
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, lic, 80, 24, "default", nil, nil)
+
+	app.Update(NavigateToLicenseSummary{})
+	if _, ok := app.current.(*licenseSummaryScreen); !ok {
+		t.Fatalf("current = %T, want *licenseSummaryScreen", app.current)
 	}
 }
 

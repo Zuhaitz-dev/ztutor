@@ -1,0 +1,5 @@
+DWARF (Debugging With Attributed Record Formats) is the standard format used by compilers to store mapping information. It contains a section called `.debug_frame` that describes how to restore registers for any given instruction pointer address. Debuggers use this when the Frame Pointer has been optimized away by `-fomit-frame-pointer`.
+---
+In the C ABI, the stack grows *downward* (from high memory addresses to low memory addresses). Therefore, "higher" on the stack (closer to the top) actually means a lower numerical memory address.
+---
+'Red Zone' is an optimization used in the AMD64 ABI; it allows a function to use the 128 bytes of memory *below* the current stack pointer without manually adjusting the stack pointer. This saves two instructions (`sub rsp, 128` and `add rsp, 128`) per function call.

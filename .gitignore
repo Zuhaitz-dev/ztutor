@@ -24,10 +24,10 @@ test_keys.json
 *.course
 
 # Courses are content assets, distributed separately from the platform.
-# The starter course is bundled so a fresh install has one usable lesson.
+# Module 1 of the C course is bundled as the free starter content.
 courses/*
-!courses/ztutor-starter/
-!courses/ztutor-starter/**
+!courses/c-programming/
+!courses/c-programming/**
 
 # Build artifacts
 *.test

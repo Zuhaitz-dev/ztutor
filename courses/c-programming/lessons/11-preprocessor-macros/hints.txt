@@ -1,0 +1,5 @@
+To define the constant: `#define MAX_CONNECTIONS 500` (Note: No equals sign, no semicolon!)
+---
+To start the conditional block: `#ifdef DEBUG_MODE`
+---
+To end the conditional block: `#endif`

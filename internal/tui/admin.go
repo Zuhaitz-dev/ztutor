@@ -96,7 +96,7 @@ func NewAdminApp(username string, database *db.DB, lic *license.State, lessonsDi
 		hasUsers = true // conservative default: show dashboard
 	}
 	if !hasUsers {
-		app.current = newAdminSetup(app.loc, width, height)
+		app.current = newAdminSetup(app.loc, width, height, freeMode)
 	} else {
 		app.current = newAdminDashboard(database, lic, app.loc, width, height)
 	}
@@ -129,7 +129,7 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.current = newAdminDashboard(a.db, a.lic, a.loc, a.Width, a.Height)
 			return a, a.current.Init()
 		case *adminSetupModel:
-			a.current = newAdminSetup(a.loc, a.Width, a.Height)
+			a.current = newAdminSetup(a.loc, a.Width, a.Height, a.freeMode)
 			return a, a.current.Init()
 		}
 		// Other admin screens don't carry locale; language takes effect on
@@ -196,7 +196,7 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.current = newAdminDashboard(a.db, a.lic, a.loc, a.Width, a.Height)
 			return a, a.current.Init()
 		case *adminSetupModel:
-			a.current = newAdminSetup(a.loc, a.Width, a.Height)
+			a.current = newAdminSetup(a.loc, a.Width, a.Height, a.freeMode)
 			return a, a.current.Init()
 		}
 		return a, nil
@@ -454,18 +454,22 @@ type adminSetupModel struct {
 	mascotFrame int
 	rainCols    []rainCol
 	rainH       int
+	freeMode    bool
 }
 
-func newAdminSetup(loc *i18n.Locale, w, h int) *adminSetupModel {
+func newAdminSetup(loc *i18n.Locale, w, h int, freeMode bool) *adminSetupModel {
 	if loc == nil {
 		loc = i18n.New("en")
 	}
 	ti := textinput.New()
-	ti.Placeholder = "admin"
+	ti.Placeholder = "learner"
+	if !freeMode {
+		ti.Placeholder = "admin"
+	}
 	ti.CharLimit = 32
 	ti.Width = 30
 	ti.Focus()
-	return &adminSetupModel{input: ti, loc: loc, sized: sized{Width: w, Height: h}}
+	return &adminSetupModel{input: ti, loc: loc, sized: sized{Width: w, Height: h}, freeMode: freeMode}
 }
 
 func (m *adminSetupModel) Init() tea.Cmd {
@@ -489,7 +493,10 @@ func (m *adminSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			name := strings.TrimSpace(m.input.Value())
 			if name == "" {
-				name = "admin"
+				name = "learner"
+				if !m.freeMode {
+					name = "admin"
+				}
 			}
 			return m, backCmd(adminSetupDoneMsg{username: name})
 		case "ctrl+c", "esc":
@@ -516,13 +523,17 @@ func (m *adminSetupModel) View() string {
 		border = border.Align(lipgloss.Right)
 	}
 
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent)).Render(T("admin.setup.title"))
-	subtitle := dim(T("admin.setup.subtitle"))
-	prompt := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBody)).Render(T("admin.setup.prompt"))
+	setupPrefix := "admin.setup.business."
+	if m.freeMode {
+		setupPrefix = "admin.setup.free."
+	}
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent)).Render(T(setupPrefix + "title"))
+	subtitle := dim(T(setupPrefix + "subtitle"))
+	prompt := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBody)).Render(T(setupPrefix + "prompt"))
 
 	content := title + "\n\n" + subtitle + "\n\n" + prompt + "\n" + m.input.View() + "\n\n" +
-		dim(T("admin.setup.hint1")) + "\n" +
-		dim(T("admin.setup.hint2")) + "\n\n" +
+		dim(T(setupPrefix+"hint1")) + "\n" +
+		dim(T(setupPrefix+"hint2")) + "\n\n" +
 		helpBar(T("help.language"))
 
 	box := border.Render(content)

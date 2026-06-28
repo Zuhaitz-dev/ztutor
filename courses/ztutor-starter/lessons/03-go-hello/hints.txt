@@ -1,5 +1,0 @@
-fmt.Println adds the newline automatically — no \n needed.
----
-Only the string inside fmt.Println needs to change.
----
-The fix is: fmt.Println("hello world")

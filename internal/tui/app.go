@@ -298,7 +298,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				logutil.Warn("failed to save intro_seen for %s: %v", a.username, err)
 			}
 			execAddr, _ := a.db.GetUserSetting(a.username, "exec_addr")
-			a.current = NewConnectChoiceScreen(a.loc, a.Width, a.Height, execAddr)
+			a.current = NewConnectChoiceScreen(a.loc, a.Width, a.Height, execAddr, a.lic != nil && a.lic.Licensed)
 			a.applyMascotFrame()
 			return a, a.current.Init()
 		}
@@ -365,7 +365,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case NavigateToConnectChoice:
 		execAddr, _ := a.db.GetUserSetting(a.username, "exec_addr")
-		a.current = NewConnectChoiceScreen(a.loc, a.Width, a.Height, execAddr)
+		a.current = NewConnectChoiceScreen(a.loc, a.Width, a.Height, execAddr, a.lic != nil && a.lic.Licensed)
 		a.applyMascotFrame()
 		return a, a.current.Init()
 
@@ -391,12 +391,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.current = NewLicenseEntryScreen(a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
+	case NavigateToLicenseSummary:
+		if a.lic != nil && a.lic.Licensed {
+			a.current = NewLicenseSummaryScreen(a.loc, a.lic, a.Width, a.Height)
+		} else {
+			a.current = NewLicenseEntryScreen(a.loc, a.Width, a.Height)
+		}
+		return a, a.current.Init()
+
 	case licenseEntryDoneMsg:
 		if msg.licState != nil {
-			// Valid license: reload courses with the new license state.
 			a.lic = msg.licState
 			a.loadCourses()
-			a.switchToMenu()
+			a.current = NewLicenseSummaryScreen(a.loc, a.lic, a.Width, a.Height)
 		}
 		return a, nil
 

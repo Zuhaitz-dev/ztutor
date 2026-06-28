@@ -1,0 +1,7 @@
+The exercise code is already complete and will compile as-is. Your job here is to read it carefully, run it, and make sure you understand each line before moving on.
+---
+Focus on the mock_stack array. Each pair of entries represents one frame: the first value is the saved frame pointer (where the previous frame started), the second is the return address (where execution goes when this function returns).
+---
+The loop stops when `ret_addr == 0`. Trace through the array manually: frame 0 has ret_addr 0x400500, frame 1 has 0x400620, frame 2 has ret_addr 0 so the loop stops there.
+---
+Try opening the GDB view (Ctrl+G) after the program runs. A real `backtrace` command in GDB walks a linked list of frame pointers exactly like this loop does, just on the live stack instead of a mock array.

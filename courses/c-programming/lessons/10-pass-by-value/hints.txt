@@ -1,0 +1,9 @@
+Use `strcmp(text, "8080") == 0` and `strcmp(text, "6379") == 0` to detect the accepted inputs.
+---
+Do not assign to `out_port`. Assign to `*out_port`, because the pointed-to integer is what belongs to the caller.
+---
+Only write to `*out_port` on success. On failure, return `1` immediately.
+---
+The whole point of this lesson is that `int *out_port` lets the function modify the caller's variable.
+---
+This is the same shape used by many real C APIs: return status in the function result, return data through an output pointer.

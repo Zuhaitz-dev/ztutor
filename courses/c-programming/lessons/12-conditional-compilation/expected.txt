@@ -1,0 +1,2 @@
+[KERNEL-ALLOC] Memory allocated successfully.
+[DEBUG] Verification passed: UP lock was compiled out (Zero Overhead).

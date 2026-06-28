@@ -1,0 +1,5 @@
+In the code you pasted, did you notice `QUIET_CC = @printf '    %b %b\n' $(CCCOLOR)CC$(ENDCOLOR)`? The `@` symbol at the start of a recipe tells Make to execute the command silently. Redis uses this to hide the massive, ugly `gcc` command strings and instead print a beautiful, color-coded `CC server.o` to the terminal!
+---
+Notice the `-MMD` flag in the Redis object compilation rule. This is a GCC compiler flag that automatically generates a `.d` (dependency) file for every `.c` file. This tells Make exactly which `.h` headers the C file relies on, so if you edit a header file, Make knows exactly which `.c` files need to be recompiled!
+---
+The Redis Makefile explicitly checks the OS using `uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')`. It uses this to dynamically inject flags. For example, if it detects Linux, it appends `-lrt` and `-ldl`. If it detects macOS (Darwin), it leaves them out, ensuring the exact same Makefile works perfectly across multiple UNIX operating systems.

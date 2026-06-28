@@ -20,6 +20,11 @@ make build
 
 On first run the server prints a setup token and the SSH address to connect to. The token is valid for 24 hours and locks after 5 failed attempts.
 
+The first account depends on the active tier:
+
+- Free tier: creates the first learner account
+- Business license with `admin_ui`: creates the admin account
+
 Connect in another terminal:
 
 ```bash
@@ -30,18 +35,20 @@ Paste the setup token when prompted to create the first account.
 
 ### Local admin dashboard
 
-If you are running `ztutord` on the same machine you are sitting at, use the `-local` flag to open the admin dashboard directly in your terminal instead of SSHing in:
+If you are running `ztutord` on the same machine you are sitting at, use the `-local` flag to open the local control flow directly in your terminal instead of SSHing in:
 
 ```bash
 ./ztutord -local
 ```
 
-The SSH server still starts in the background so students can connect while you manage the server from the same terminal session. Press `q` or `Ctrl+C` in the admin dashboard to exit; the SSH server shuts down cleanly.
+The SSH server still starts in the background so students can connect while you manage the server from the same terminal session.
 
-ztutor includes a small starter course with hello world lessons in multiple programming languages.
-Full course content can still be distributed separately. If `courses/` is empty
-or not mounted, the app starts and shows an empty course menu; add course
-directories or `.course` packages to make lessons available.
+- Free tier opens learner setup or learner mode
+- Business with `admin_ui` opens the admin dashboard
+
+Press `q` or `Ctrl+C` in the local interface to exit; the SSH server shuts down cleanly.
+
+The included `courses/c-programming` course ships 15 free lessons covering C foundations (Module 1). No C experience needed — prior programming experience in any language is assumed. Students can start immediately without a license. Additional modules and premium content can be distributed as `.course` packages placed in the `courses/` directory. If `courses/` is empty or not mounted, the app starts with an empty course menu.
 
 ### Local controller support (Linux only)
 
@@ -99,9 +106,7 @@ docker compose up -d
 
 Students connect with: `ssh username@yourhost -p 2222`
 
-The Docker service mounts `./courses` into the container as read-only course
-content. A fresh checkout includes `courses/ztutor-starter`; keep that directory
-or replace the mount with the course distribution path for your deployment.
+The Docker service mounts `./courses` into the container as read-only course content. A fresh checkout includes `courses/c-programming` (Module 1, 15 free lessons). Add additional `.course` packages or course directories to the mount to make more content available.
 
 ### systemd
 
@@ -244,20 +249,37 @@ references:
 Lesson content in markdown. Code blocks are syntax-highlighted.
 ```
 
-Set `premium: true` to gate a lesson behind a license. Free users see the lesson title with a `[P]` badge. Courses with at least one premium lesson show `[freemium]` in the course list.
+Set `premium: true` to gate a lesson behind a license. Free-tier users still see the lesson title with a `[P]` badge, but cannot open it. Courses with at least one premium lesson show `[freemium]` in the course list.
 
 ## Licensing and tiers
 
+`ztutor` currently maps to three practical tiers:
+
+- `Free`: single-learner access to built-in open content
+- `Premium`: licensed content unlocks for an individual learner
+- `Business`: multi-user server deployment for schools or teams
+
+In product terms, the paths are:
+
+- Learn locally with the free tier
+- Add a personal license to unlock premium content
+- Deploy the server with a business license for classrooms or teams
+
 | Feature | Free | Premium | Business |
 |---------|------|---------|----------|
-| C Programming course | yes | yes | yes |
-| Premium course content | no | yes | yes |
+| C Programming Module 1 (15 lessons) | yes | yes | yes |
+| All open / non-premium lessons | yes | yes | yes |
+| Single learner / self-study use | yes | yes | yes |
+| Premium lessons and courses | no | yes | yes |
+| Encrypted `.course` packages | no | yes | yes |
+| Interview sections | no | optional | optional |
 | License key | no | per-user | per-org |
-| Encrypted course packages | no | yes | yes |
 | Multi-user SSH server | no | no | yes |
 | Admin dashboard | no | no | yes |
-| Custom courses | no | no | yes |
-| Private deployment | no | no | yes |
+| Seat limit management | no | no | yes |
+| Custom/private deployment | no | no | yes |
+
+On the server, free tier means student access to open content only. It does not include multi-user administration, interview sections, or premium or encrypted course access. Business is the deployment tier for shared execution, student management, and admin tools.
 
 ### Issue a license
 
@@ -286,6 +308,8 @@ Premium courses are distributed as `.course` files: AES-256-GCM encrypted archiv
 ## Admin dashboard
 
 Available when a license with `admin_ui` is active. The first connection creates the admin account. From the dashboard you can manage students, create and edit lessons (via a guided wizard), manage courses, and view student progress.
+
+Without `admin_ui`, first-run setup stays in learner mode. That matches the free tier: the server remains usable for a single learner, but it does not become an admin-managed multi-user deployment.
 
 The admin dashboard is accessible two ways:
 
