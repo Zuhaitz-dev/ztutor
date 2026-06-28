@@ -15,7 +15,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"ztutor/internal/db"
 	"ztutor/internal/lesson"
@@ -360,32 +359,6 @@ func (s *Server) handleSession(channel gossh.Channel, requests <-chan *gossh.Req
 			req.Reply(false, nil)
 		}
 	}
-}
-
-// openPTY opens /dev/ptmx and returns (master, slavePath).
-// The master has O_CLOEXEC so child processes don't inherit it.
-func openPTY() (*os.File, string, error) {
-	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
-	if err != nil {
-		return nil, "", fmt.Errorf("open /dev/ptmx: %w", err)
-	}
-
-	// Get slave PTY number via TIOCGPTN.
-	var ptyNum uint32
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, master.Fd(), unix.TIOCGPTN, uintptr(unsafe.Pointer(&ptyNum))); errno != 0 {
-		master.Close()
-		return nil, "", fmt.Errorf("TIOCGPTN: %w", errno)
-	}
-	slaveName := fmt.Sprintf("/dev/pts/%d", ptyNum)
-
-	// Unlock the slave via TIOCSPTLCK(0).
-	var lock int32
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, master.Fd(), unix.TIOCSPTLCK, uintptr(unsafe.Pointer(&lock))); errno != 0 {
-		master.Close()
-		return nil, "", fmt.Errorf("TIOCSPTLCK: %w", errno)
-	}
-
-	return master, slaveName, nil
 }
 
 func setPTYSize(master *os.File, rows, cols int) {

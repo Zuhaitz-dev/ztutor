@@ -11,11 +11,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unsafe"
-
-	"golang.org/x/sys/unix"
-
-	"ztutor/internal/logutil"
 )
 
 const (
@@ -32,93 +27,6 @@ var canUseNamespaces bool
 
 func init() {
 	canUseNamespaces = probeNamespaces()
-}
-
-func probeNamespaces() bool {
-	if os.Getenv("ZTUTOR_NO_NAMESPACES") != "" {
-		return false
-	}
-	dir, err := os.MkdirTemp("", "ztutor-probe-")
-	if err != nil {
-		return false
-	}
-	defer os.RemoveAll(dir)
-
-	progPath := filepath.Join(dir, "probe")
-	os.WriteFile(progPath, nil, 0755)
-
-	cmd := exec.Command(progPath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: unix.CLONE_NEWUSER | unix.CLONE_NEWNS | unix.CLONE_NEWPID,
-		UidMappings: []syscall.SysProcIDMap{
-			{ContainerID: 0, HostID: os.Getuid(), Size: 1},
-		},
-		GidMappings: []syscall.SysProcIDMap{
-			{ContainerID: 0, HostID: os.Getgid(), Size: 1},
-		},
-	}
-	err = cmd.Run()
-	return err == nil
-}
-
-// rlimitEntry ties a resource identifier to its old-value holder.
-type rlimitEntry struct {
-	resource int
-	cur      uint64
-	max      uint64
-	old      *syscall.Rlimit
-}
-
-func setResourceLimits() []rlimitEntry {
-	var (
-		oldMem    syscall.Rlimit
-		oldFsize  syscall.Rlimit
-		oldNofile syscall.Rlimit
-		oldNproc  syscall.Rlimit
-		oldCPU    syscall.Rlimit
-		oldCore   syscall.Rlimit
-	)
-
-	limits := []rlimitEntry{
-		{syscall.RLIMIT_AS, maxMemory, maxMemory, &oldMem},
-		{syscall.RLIMIT_FSIZE, maxFileSize, maxFileSize, &oldFsize},
-		{syscall.RLIMIT_NOFILE, maxOpenFiles, maxOpenFiles, &oldNofile},
-		{unix.RLIMIT_NPROC, maxProcs, maxProcs, &oldNproc},
-		{syscall.RLIMIT_CPU, maxCPUSeconds, maxCPUSeconds, &oldCPU},
-		{syscall.RLIMIT_CORE, 0, 0, &oldCore},
-	}
-
-	for _, l := range limits {
-		syscall.Getrlimit(l.resource, l.old)
-		if err := syscall.Setrlimit(l.resource, &syscall.Rlimit{Cur: l.cur, Max: l.max}); err != nil {
-			logutil.Warn("sandbox: Setrlimit(%d) failed: %v", l.resource, err)
-		}
-	}
-
-	return limits
-}
-
-func restoreResourceLimits(limits []rlimitEntry) {
-	for _, l := range limits {
-		syscall.Setrlimit(l.resource, l.old) //nolint:errcheck
-	}
-}
-
-func executionSysProcAttr() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{
-		Pdeathsig: syscall.SIGKILL,
-		Setpgid:   true,
-	}
-}
-
-func setNamespaceOpts(cmd *exec.Cmd) {
-	cmd.SysProcAttr.Cloneflags = unix.CLONE_NEWUSER | unix.CLONE_NEWNS | unix.CLONE_NEWNET | unix.CLONE_NEWPID
-	cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
-		{ContainerID: 0, HostID: os.Getuid(), Size: 1},
-	}
-	cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
-		{ContainerID: 0, HostID: os.Getgid(), Size: 1},
-	}
 }
 
 func formatExecuteResult(stdout, stderr, dir string, ctxErr error, execErr error) *Result {
@@ -466,11 +374,29 @@ type InteractiveEvent struct {
 }
 
 func RunInteractive(command string, args []string) (writeFn func([]byte) error, events <-chan InteractiveEvent, kill func(), err error) {
-	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
+	master, slave, err := openInteractivePTY()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("open /dev/ptmx: %w", err)
+		return nil, nil, nil, err
 	}
-	// Ensure master is closed on early returns.
+	defer slave.Close()
+
+	configureTermios(int(slave.Fd()))
+
+	cmd := exec.Command(command, args...)
+	cmd.Stdin = slave
+	cmd.Stdout = slave
+	cmd.Stderr = slave
+	cmd.SysProcAttr = interactiveSysProcAttr()
+
+	dir, _ := os.MkdirTemp("", "ztutor-interactive-")
+	if dir != "" {
+		defer os.RemoveAll(dir)
+	}
+	cmd.Env = sandboxEnv(dir, nil)
+
+	cleanup := applyInteractiveIsolation(cmd)
+	defer cleanup()
+
 	closeMaster := true
 	defer func() {
 		if closeMaster {
@@ -478,64 +404,10 @@ func RunInteractive(command string, args []string) (writeFn func([]byte) error, 
 		}
 	}()
 
-	var ptyNum uint32
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, master.Fd(), unix.TIOCGPTN, uintptr(unsafe.Pointer(&ptyNum))); errno != 0 {
-		return nil, nil, nil, fmt.Errorf("TIOCGPTN: %w", errno)
-	}
-	slaveName := fmt.Sprintf("/dev/pts/%d", ptyNum)
-
-	var lock int32
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, master.Fd(), unix.TIOCSPTLCK, uintptr(unsafe.Pointer(&lock))); errno != 0 {
-		return nil, nil, nil, fmt.Errorf("TIOCSPTLCK: %w", errno)
-	}
-
-	slave, err := os.OpenFile(slaveName, os.O_RDWR|syscall.O_NOCTTY, 0)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("open slave: %w", err)
-	}
-	defer slave.Close()
-
-	if t, err2 := unix.IoctlGetTermios(int(slave.Fd()), unix.TCGETS); err2 == nil {
-		t.Lflag &^= unix.ECHO | unix.ECHOE | unix.ECHOK | unix.ECHONL
-		if err3 := unix.IoctlSetTermios(int(slave.Fd()), unix.TCSETS, t); err3 != nil {
-			logutil.Warn("sandbox: interactive: failed to disable echo on pty: %v", err3)
-		}
-	}
-
-	cmd := exec.Command(command, args...)
-	cmd.Stdin = slave
-	cmd.Stdout = slave
-	cmd.Stderr = slave
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:    true,
-		Setctty:   true,
-		Ctty:      0,
-		Pdeathsig: syscall.SIGKILL,
-	}
-	// Scrub environment: interactive mode gets the same minimal environment.
-	dir, _ := os.MkdirTemp("", "ztutor-interactive-")
-	if dir != "" {
-		defer os.RemoveAll(dir)
-	}
-	cmd.Env = sandboxEnv(dir, nil)
-
-	// Apply namespace isolation when available.
-	if canUseNamespaces {
-		cmd.SysProcAttr.Cloneflags = unix.CLONE_NEWUSER | unix.CLONE_NEWNS | unix.CLONE_NEWNET | unix.CLONE_NEWPID
-		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
-			{ContainerID: 0, HostID: os.Getuid(), Size: 1},
-		}
-		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
-			{ContainerID: 0, HostID: os.Getgid(), Size: 1},
-		}
-		limits := setResourceLimits()
-		defer restoreResourceLimits(limits)
-	}
-
 	if err := cmd.Start(); err != nil {
 		return nil, nil, nil, fmt.Errorf("start: %w", err)
 	}
-	closeMaster = false // master will be closed by the goroutine
+	closeMaster = false
 
 	ch := make(chan InteractiveEvent, 64)
 
