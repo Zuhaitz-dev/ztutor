@@ -7,6 +7,7 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"syscall"
 
@@ -22,6 +23,7 @@ import (
 	"ztutor/internal/version"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
 )
 
 func defaultDataDir() string {
@@ -37,6 +39,7 @@ func defaultDataDir() string {
 
 func main() {
 	verbose := flag.Bool("v", false, "enable verbose debug logging")
+	localMode := flag.Bool("local", false, "open the admin dashboard in this terminal (SSH server still runs in background)")
 	flag.Parse()
 	logutil.SetVerbose(*verbose)
 
@@ -93,6 +96,7 @@ func main() {
 
 	achievementsFile := filepath.Join(filepath.Dir(lessonsDir), "custom_achievements.yaml")
 
+	setupToken := db.GenerateSetupToken()
 	srv, err := ssh.New(ssh.Config{
 		HostKey:          hostKey,
 		CoursesDir:       coursesDir,
@@ -102,7 +106,7 @@ func main() {
 		Addr:             cfg.SSH.Addr,
 		Keymap:           cfg.Keymap,
 		License:          lic,
-		SetupToken:       db.GenerateSetupToken(),
+		SetupToken:       setupToken,
 		MaxConns:         cfg.SSH.MaxConns,
 	}, &ssh.TUIProvider{
 		NewStudentApp: func(username, coursesDir, lessonsDir string, db *db.DB, license *license.State, width, height int, keymap string, launchGDB func(*sandbox.DebugBuild, lesson.Lesson), startLesson *lesson.Lesson) tea.Model {
@@ -146,17 +150,25 @@ func main() {
 	}()
 
 	errCh := make(chan error, 1)
-	go func() {
-		errCh <- srv.ListenAndServe()
-	}()
+	go func() { errCh <- srv.ListenAndServe() }()
 
-	select {
-	case <-ctx.Done():
-		logutil.Info("stopping server...")
-		srv.Shutdown(ctx)
-	case err := <-errCh:
-		if err != nil {
+	if *localMode {
+		select {
+		case <-srv.Ready():
+		case err := <-errCh:
 			logutil.Fatal("server: %v", err)
+		}
+		runLocalAdmin(srv, dbPath, lic, lessonsDir, coursesDir, achievementsFile)
+		srv.Shutdown(ctx)
+	} else {
+		select {
+		case <-ctx.Done():
+			logutil.Info("stopping server...")
+			srv.Shutdown(ctx)
+		case err := <-errCh:
+			if err != nil {
+				logutil.Fatal("server: %v", err)
+			}
 		}
 	}
 
@@ -171,4 +183,33 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func runLocalAdmin(srv *ssh.Server, dbPath string, lic *license.State, lessonsDir, coursesDir, achievementsFile string) {
+	localDB, err := db.Open(dbPath)
+	if err != nil {
+		logutil.Error("local admin: open db: %v", err)
+		return
+	}
+	defer localDB.Close()
+
+	width, height := 120, 40
+	if w, h, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 && h > 0 {
+		width, height = w, h
+	}
+
+	logutil.Info("SSH server running at %s — admin dashboard opening", srv.ListenAddr())
+
+	username := adminUsername()
+	app := tui.NewAdminApp(username, localDB, lic, lessonsDir, coursesDir, achievementsFile, width, height)
+	if _, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
+		logutil.Error("local admin TUI: %v", err)
+	}
+}
+
+func adminUsername() string {
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
+	}
+	return "admin"
 }

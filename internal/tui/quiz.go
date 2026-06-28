@@ -60,7 +60,7 @@ func (qs *QuizScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case KeyBack, KeyBackAlt, KeyBackEditor:
-			return qs, backCmd(NavigateToMenu{})
+			return qs, backCmd(NavigateBackToCourse{})
 		case KeyUp, KeyUpVim:
 			qs.move(-1)
 		case KeyDown, KeyDownVim:
@@ -90,7 +90,7 @@ func (qs *QuizScreen) move(delta int) {
 func (qs *QuizScreen) activate() tea.Cmd {
 	q := qs.current()
 	if q == nil {
-		return backCmd(NavigateToMenu{})
+		return backCmd(NavigateBackToCourse{})
 	}
 	if !qs.submitted[q.ID] {
 		qs.selected[q.ID] = qs.cursor
@@ -106,7 +106,7 @@ func (qs *QuizScreen) activate() tea.Cmd {
 		qs.completed = true
 		return backCmd(lessonCompletedMsg{lessonID: qs.quiz.ID, stars: qs.stars()})
 	}
-	return backCmd(NavigateToMenu{})
+	return backCmd(NavigateBackToCourse{})
 }
 
 func (qs *QuizScreen) score() (correct, total int) {

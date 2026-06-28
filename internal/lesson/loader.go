@@ -63,6 +63,21 @@ type Lesson struct {
 	SyntaxHighlighting string // Chroma lexer name
 }
 
+// IsReadOnly returns true for lessons that have content but no exercise to submit.
+// These are reading/intro lessons that are auto-completed on first visit.
+func (l *Lesson) IsReadOnly() bool {
+	return l.Exercise == "" && len(l.Files) == 0
+}
+
+// MaxStars returns the maximum stars achievable for this lesson.
+// Read-only lessons auto-complete with 1 star; exercise lessons can earn up to 3.
+func (l *Lesson) MaxStars() int {
+	if l.IsReadOnly() {
+		return 1
+	}
+	return 3
+}
+
 // langExtension maps language names to their canonical source extension.
 // Used when frontmatter declares a lesson-level language override.
 var langExtension = map[string]string{

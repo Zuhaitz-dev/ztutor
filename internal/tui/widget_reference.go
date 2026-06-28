@@ -20,6 +20,11 @@ func newReferenceWidget(refs []string, loc *i18n.Locale) *ReferenceWidget {
 
 func (w *ReferenceWidget) Available() bool { return len(w.refs) > 0 }
 
+// SetReferences replaces the reference list, e.g. after a locale switch.
+func (w *ReferenceWidget) SetReferences(refs []string) {
+	w.refs = refs
+}
+
 func (w *ReferenceWidget) Toggle() { w.visible = !w.visible }
 
 func (w *ReferenceWidget) Hide() { w.visible = false }

@@ -125,6 +125,8 @@ type App struct {
 
 	pendingNotifications []string
 	pendingCourseEntry   *lesson.Course // set when a course intro is playing
+	activeCourseID       string         // current course context for returning from lesson/exercise screens
+	activeCourseNodeID   string         // preferred lesson/node selection when reopening a course
 
 	current   tea.Model
 	launchGDB func(*sandbox.DebugBuild, lesson.Lesson)
@@ -235,7 +237,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.loadCourses()
 			// Push updated lesson content/hints/tutorial into the live screen
 			// before swapping the locale so everything re-renders together.
-			a.refreshCurrentLesson()
+			a.refreshCurrentScreenData()
 			// If the current screen knows how to update its own locale, do
 			// that in place so the user stays where they are. Otherwise fall
 			// back to navigating to the menu so they see the new language.
@@ -285,9 +287,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(course.Sections) == 0 {
 					a.switchToMenu()
 				} else {
-					m := a.newMenuScreenWithCourse(course)
-					a.current = m
-					a.applyMascotFrame()
+					a.openCourse(course)
 				}
 			} else {
 				a.switchToMenu()
@@ -303,6 +303,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, a.current.Init()
 		}
 		return a, nil
+
+	case enterCoursePathMsg:
+		a.openCourse(msg.course)
+		return a, a.current.Init()
 
 	case showCourseIntroMsg:
 		a.pendingCourseEntry = &msg.course
@@ -355,6 +359,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.switchToMenu()
 		return a, nil
 
+	case NavigateBackToCourse:
+		a.returnToActiveCourse()
+		return a, nil
+
 	case NavigateToConnectChoice:
 		execAddr, _ := a.db.GetUserSetting(a.username, "exec_addr")
 		a.current = NewConnectChoiceScreen(a.loc, a.Width, a.Height, execAddr)
@@ -393,11 +401,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case NavigateToLessonMsg:
-		a.current = NewLessonScreen(msg.Lesson, a.Width, a.Height, a.loc)
+		a.activeCourseNodeID = msg.Lesson.ID
+		a.current = NewLessonScreen(msg.Lesson, a.progress[msg.Lesson.ID], a.Width, a.Height, a.loc)
 		a.applyMascotFrame()
 		return a, a.current.Init()
 
 	case NavigateToExerciseMsg:
+		a.activeCourseNodeID = msg.Lesson.ID
 		if msg.Lesson.IsPremium && !a.canAccessLesson(msg.Lesson) {
 			a.switchToMenu()
 			return a, nil
@@ -419,6 +429,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.current.Init()
 
 	case startExerciseMsg:
+		a.activeCourseNodeID = msg.lesson.ID
 		if msg.lesson.IsPremium && !a.canAccessLesson(msg.lesson) {
 			a.switchToMenu()
 			return a, nil
@@ -488,23 +499,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.stars > a.progress[msg.lessonID] {
 			a.progress[msg.lessonID] = msg.stars
 		}
+		a.activeCourseNodeID = a.preferredCourseNodeAfterCompletion(msg.lessonID)
 		// Check for graduate achievement: all lessons in the same course done.
 		a.checkGraduate(msg.lessonID)
 		if msg.goNext {
-			lessons := a.allLessons()
-			for i, l := range lessons {
-				if l.ID == msg.lessonID && i+1 < len(lessons) {
-					next := lessons[i+1]
-					showMascot, showTimer := a.exercisePrefs()
-					esNext := NewExerciseScreen(next, a.resolveLanguage(&next), a.executor, a.Width, a.Height, a.keymap, a.progress[next.ID], a.streak, a.loc, showMascot, showTimer)
-					esNext.SetHasGamepad(a.gamepad != nil)
-					a.current = esNext
-					a.applyMascotFrame()
-					return a, a.current.Init()
-				}
+			if next, ok := a.nextLesson(msg.lessonID); ok {
+				a.activeCourseNodeID = next.ID
+				a.current = NewLessonScreen(next, a.progress[next.ID], a.Width, a.Height, a.loc)
+				a.applyMascotFrame()
+				return a, a.current.Init()
 			}
 		}
-		a.switchToMenu()
+		a.returnToActiveCourse()
 		return a, nil
 
 	case achievementEventMsg:
@@ -568,6 +574,8 @@ func (a *App) buildMenuScreen(notifications []string) *MenuScreen {
 func (a *App) switchToMenu() {
 	m := a.buildMenuScreen(a.pendingNotifications)
 	a.pendingNotifications = nil
+	a.activeCourseID = ""
+	a.activeCourseNodeID = ""
 	a.current = m
 	a.applyMascotFrame()
 }
@@ -578,6 +586,38 @@ func (a *App) newMenuScreenWithCourse(c lesson.Course) *MenuScreen {
 	m := a.buildMenuScreen(nil)
 	m.enterCourseDirectly(c)
 	return m
+}
+
+// openCourse navigates to the appropriate view for the given course.
+// Courses with layout: path open a PathScreen; all others open the MenuScreen
+// lesson list. This is the single routing point for course entry.
+func (a *App) openCourse(c lesson.Course) {
+	a.activeCourseID = c.ID
+	if c.Layout == lesson.CourseLayoutPath {
+		a.current = NewPathScreen(c, a.progress, a.activeCourseNodeID, a.loc, a.Width, a.Height)
+		a.applyMascotFrame()
+		return
+	}
+	m := a.newMenuScreenWithCourse(c)
+	a.current = m
+	a.applyMascotFrame()
+}
+
+func (a *App) returnToActiveCourse() {
+	if a.activeCourseID == "" {
+		a.switchToMenu()
+		return
+	}
+	for _, c := range a.filteredCourses() {
+		if c.ID == a.activeCourseID {
+			if len(c.Sections) == 0 {
+				break
+			}
+			a.openCourse(c)
+			return
+		}
+	}
+	a.switchToMenu()
 }
 
 func (a *App) canAccessLesson(l lesson.Lesson) bool {
@@ -715,18 +755,22 @@ func (a *App) findQuiz(id string) (lesson.Quiz, bool) {
 	return lesson.Quiz{}, false
 }
 
-// refreshCurrentLesson pushes locale-dependent lesson content (text, hints,
-// tutorial) into the live screen after loadCourses has run with the new lang.
+// refreshCurrentScreenData pushes reloaded course/lesson data into the live
+// screen after loadCourses has run with a new locale.
 // Call this before SetLocale so the screen re-renders with fresh content.
-func (a *App) refreshCurrentLesson() {
+func (a *App) refreshCurrentScreenData() {
 	switch s := a.current.(type) {
+	case *PathScreen:
+		if c, ok := a.findCourse(a.activeCourseID); ok {
+			s.SetCourse(c, a.progress)
+		}
 	case *LessonScreen:
 		if l, ok := a.findLesson(s.lesson.ID); ok {
 			s.lesson = l
 		}
 	case *ExerciseScreen:
 		if l, ok := a.findLesson(s.lesson.ID); ok {
-			s.hint.SetHints(l.Hints)
+			s.SetLesson(l)
 		}
 	case *PreExerciseScreen:
 		if l, ok := a.findLesson(s.lesson.ID); ok {
@@ -805,6 +849,40 @@ func (a *App) allLessons() []lesson.Lesson {
 		}
 	}
 	return out
+}
+
+// nextLesson returns the next lesson after lessonID, preferring the active
+// course context when available so progression does not jump across courses.
+func (a *App) nextLesson(lessonID string) (lesson.Lesson, bool) {
+	if a.activeCourseID != "" {
+		for _, c := range a.filteredCourses() {
+			if c.ID != a.activeCourseID {
+				continue
+			}
+			for _, sec := range c.Sections {
+				for i, l := range sec.Lessons {
+					if l.ID == lessonID && i+1 < len(sec.Lessons) {
+						return sec.Lessons[i+1], true
+					}
+				}
+			}
+			return lesson.Lesson{}, false
+		}
+	}
+	lessons := a.allLessons()
+	for i, l := range lessons {
+		if l.ID == lessonID && i+1 < len(lessons) {
+			return lessons[i+1], true
+		}
+	}
+	return lesson.Lesson{}, false
+}
+
+func (a *App) preferredCourseNodeAfterCompletion(lessonID string) string {
+	if next, ok := a.nextLesson(lessonID); ok {
+		return next.ID
+	}
+	return lessonID
 }
 
 // checkGraduate grants the "graduate" achievement if all lessons in the course
@@ -940,7 +1018,13 @@ func (a *App) grantAchievements(events []string) {
 	}
 }
 
-func starsStyle(stars int) string {
+func starsStyle(stars, maxStars int) string {
+	if maxStars == 1 {
+		if stars >= 1 {
+			return lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGold)).Bold(true).Render("★  ")
+		}
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("○  ")
+	}
 	switch stars {
 	case 3:
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGold)).Bold(true).Render("★★★")

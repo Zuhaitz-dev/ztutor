@@ -164,16 +164,16 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.current.Init()
 
 	case adminStudentAddedMsg:
-		a.current = newAdminStudentList(a.db, a.Width, a.Height)
+		a.current = newAdminStudentList(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case adminStudentToggleMsg:
 		a.db.SetUserEnabled(msg.username, msg.enabled)
-		a.current = newAdminStudentList(a.db, a.Width, a.Height)
+		a.current = newAdminStudentList(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case adminPasswordResetDoneMsg:
-		a.current = newAdminStudentList(a.db, a.Width, a.Height)
+		a.current = newAdminStudentList(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case adminLessonSavedMsg:
@@ -206,15 +206,15 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.current.Init()
 
 	case NavigateToAdminStudents:
-		a.current = newAdminStudentList(a.db, a.Width, a.Height)
+		a.current = newAdminStudentList(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case NavigateToAdminAddStudent:
-		a.current = newAdminAddStudent(a.db, a.lic, a.Width, a.Height)
+		a.current = newAdminAddStudent(a.db, a.lic, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case NavigateToAdminPasswordReset:
-		a.current = newAdminPasswordReset(msg.Username, a.db, a.Width, a.Height)
+		a.current = newAdminPasswordReset(msg.Username, a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case NavigateToAdminStudentDetail:
@@ -468,15 +468,19 @@ func newAdminSetup(loc *i18n.Locale, w, h int) *adminSetupModel {
 	return &adminSetupModel{input: ti, loc: loc, sized: sized{Width: w, Height: h}}
 }
 
-func (m *adminSetupModel) Init() tea.Cmd { return mascotTickCmd() }
+func (m *adminSetupModel) Init() tea.Cmd {
+	return tea.Batch(mascotTickCmd(), rainTickCmd())
+}
 
 func (m *adminSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case mascotTickMsg:
-		m.mascotFrame++
+	case rainTickMsg:
 		for i := range m.rainCols {
 			m.rainCols[i].tick(m.rainH)
 		}
+		return m, rainTickCmd()
+	case mascotTickMsg:
+		m.mascotFrame++
 		return m, mascotTickCmd()
 	case tea.WindowSizeMsg:
 		m.HandleResize(msg)
@@ -507,6 +511,11 @@ func (m *adminSetupModel) View() string {
 		Padding(2, 4).
 		Width(50)
 
+	rtl := m.loc.IsRTL()
+	if rtl {
+		border = border.Align(lipgloss.Right)
+	}
+
 	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent)).Render(T("admin.setup.title"))
 	subtitle := dim(T("admin.setup.subtitle"))
 	prompt := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBody)).Render(T("admin.setup.prompt"))
@@ -523,7 +532,11 @@ func (m *adminSetupModel) View() string {
 	}
 
 	ensureFullRain(&m.rainCols, &m.rainH, m.Width, m.Height)
-	return overlayBoxOnRain(m.rainCols, box, m.Width, m.Height)
+	out := overlayBoxOnRain(m.rainCols, box, m.Width, m.Height)
+	if rtl {
+		out = addLTRMark(out)
+	}
+	return out
 }
 
 // ── Admin Dashboard ───────────────────────────────────────────────────────────
@@ -570,15 +583,19 @@ func newAdminDashboardWithErr(database *db.DB, lic *license.State, loc *i18n.Loc
 	return m
 }
 
-func (m *adminDashboardModel) Init() tea.Cmd { return mascotTickCmd() }
+func (m *adminDashboardModel) Init() tea.Cmd {
+	return tea.Batch(mascotTickCmd(), rainTickCmd())
+}
 
 func (m *adminDashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case mascotTickMsg:
-		m.mascotFrame++
+	case rainTickMsg:
 		for i := range m.rainCols {
 			m.rainCols[i].tick(m.rainH)
 		}
+		return m, rainTickCmd()
+	case mascotTickMsg:
+		m.mascotFrame++
 		return m, mascotTickCmd()
 	case tea.WindowSizeMsg:
 		m.HandleResize(msg)
@@ -627,6 +644,11 @@ func (m *adminDashboardModel) View() string {
 	}
 
 	T := m.loc.T
+	rtl := m.loc.IsRTL()
+	textAlign := lipgloss.Left
+	if rtl {
+		textAlign = lipgloss.Right
+	}
 	numStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent)).Bold(true)
 
 	title := titleStyle(T("admin.title"))
@@ -663,18 +685,25 @@ func (m *adminDashboardModel) View() string {
 	}
 
 	hl := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHex))
+	menuItem := func(key, label string) string {
+		k := dim(key+".") + " " + hl.Render(label)
+		if rtl {
+			return hl.Render(label) + " " + dim("."+key)
+		}
+		return k
+	}
 	menu := bold(T("admin.menu.title")) + "\n" +
-		"  1. " + hl.Render(T("admin.menu.students")) + "\n" +
-		"  2. " + hl.Render(T("admin.menu.add_student")) + "\n" +
-		"  3. " + hl.Render(T("admin.menu.student_view")) + "\n" +
-		"  4. " + hl.Render(T("admin.menu.courses")) + "\n" +
-		"  5. " + hl.Render(T("admin.menu.create")) + "\n" +
-		"  6. " + hl.Render(T("admin.menu.import")) + "\n" +
-		"  7. " + hl.Render(T("admin.menu.edit")) + "\n" +
-		"  8. " + hl.Render(T("admin.menu.achievements")) + "\n" +
-		"  9. " + hl.Render(T("admin.menu.export")) + "\n" +
-		"  0. " + hl.Render(T("admin.menu.scaffold")) + "\n" +
-		"  q. " + T("admin.menu.quit")
+		"  " + menuItem("1", T("admin.menu.students")) + "\n" +
+		"  " + menuItem("2", T("admin.menu.add_student")) + "\n" +
+		"  " + menuItem("3", T("admin.menu.student_view")) + "\n" +
+		"  " + menuItem("4", T("admin.menu.courses")) + "\n" +
+		"  " + menuItem("5", T("admin.menu.create")) + "\n" +
+		"  " + menuItem("6", T("admin.menu.import")) + "\n" +
+		"  " + menuItem("7", T("admin.menu.edit")) + "\n" +
+		"  " + menuItem("8", T("admin.menu.achievements")) + "\n" +
+		"  " + menuItem("9", T("admin.menu.export")) + "\n" +
+		"  " + menuItem("0", T("admin.menu.scaffold")) + "\n" +
+		"  " + menuItem("q", T("admin.menu.quit"))
 
 	errLine := ""
 	if m.flashErr != "" {
@@ -687,6 +716,7 @@ func (m *adminDashboardModel) View() string {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(ColorAccent)).
 		Padding(2, 4).
+		Align(textAlign).
 		Width(52).
 		Render(leftContent)
 
@@ -703,7 +733,7 @@ func (m *adminDashboardModel) View() string {
 	labelColor := labelColors[m.mascotFrame%len(labelColors)]
 	mascotLabel := lipgloss.NewStyle().Foreground(labelColor).Bold(true).Render("  Mochi")
 
-	// Cycling code snippet — changes every ~3s (frame/6).
+	// Cycling code snippet — changes every ~3s (mascotFrame/6).
 	snippet := adminDashboardSnippets[(m.mascotFrame/6)%len(adminDashboardSnippets)]
 	snippetStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorFaded)).Italic(true)
 	snippetLine := snippetStyle.Render(snippet)
@@ -715,6 +745,9 @@ func (m *adminDashboardModel) View() string {
 		badge := okStyle.Render("[OK]")
 		if !ok {
 			badge = warnStyle.Render("[--]")
+		}
+		if rtl {
+			return lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBody)).Render(val) + " " + dim(label) + " " + badge
 		}
 		return badge + " " + dim(label) + " " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBody)).Render(val)
 	}
@@ -745,6 +778,7 @@ func (m *adminDashboardModel) View() string {
 	rightPanel := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(ColorBorder)).
+		Align(textAlign).
 		Padding(2, 3).
 		Width(34).
 		Render(rightContent)
@@ -755,10 +789,23 @@ func (m *adminDashboardModel) View() string {
 	}
 
 	ensureFullRain(&m.rainCols, &m.rainH, m.Width, m.Height)
+	if rtl {
+		return addLTRMark(overlayTwoPanelsOnRain(m.rainCols, rightPanel, leftPanel, 2, m.Width, m.Height))
+	}
 	return overlayTwoPanelsOnRain(m.rainCols, leftPanel, rightPanel, 2, m.Width, m.Height)
 }
 
-// ── Shared helper ─────────────────────────────────────────────────────────────
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+// addLTRMark prefixes every line with U+200E so BiDi-aware terminals keep
+// panel borders in LTR order even when Arabic text is present in panels.
+func addLTRMark(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = "\u200e" + l
+	}
+	return strings.Join(lines, "\n")
+}
 
 func center(w, h int, content string) string {
 	if w <= 0 || h <= 0 {

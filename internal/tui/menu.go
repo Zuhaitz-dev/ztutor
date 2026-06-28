@@ -40,6 +40,27 @@ var rainGradient = []lipgloss.Color{
 	"238",
 }
 
+// rainAnsiPfx pre-computes ANSI xterm-256 sequences for each gradient level.
+var rainAnsiPfx []string
+
+const ansiReset = "\033[0m"
+
+func init() {
+	rainAnsiPfx = make([]string, len(rainGradient))
+	for i, color := range rainGradient {
+		rainAnsiPfx[i] = fmt.Sprintf("\033[38;5;%sm", string(color))
+	}
+}
+
+type rainTickMsg struct{}
+
+// rainTickCmd runs the rain at ~12 fps, independent of the mascot clock.
+func rainTickCmd() tea.Cmd {
+	return tea.Tick(83*time.Millisecond, func(time.Time) tea.Msg {
+		return rainTickMsg{}
+	})
+}
+
 type rainCol struct {
 	head  float64
 	speed float64
@@ -55,7 +76,7 @@ func newRainCol(h int) rainCol {
 	}
 	return rainCol{
 		head:  -float64(rand.Intn(h + 1)),
-		speed: 0.4 + rand.Float64()*0.7,
+		speed: 0.5 + rand.Float64()*1.0,
 		trail: 5 + rand.Intn(11),
 		chars: chars,
 	}
@@ -74,7 +95,7 @@ func (c *rainCol) tick(h int) {
 			chars[i] = cRainChars[rand.Intn(len(cRainChars))]
 		}
 		c.head = -float64(rand.Intn(h/2 + 1))
-		c.speed = 0.4 + rand.Float64()*0.7
+		c.speed = 0.5 + rand.Float64()*1.0
 		c.trail = 5 + rand.Intn(11)
 		c.chars = chars
 	}
@@ -93,15 +114,19 @@ func (c *rainCol) renderAt(row int) string {
 		ch = ' '
 	}
 	idx := dist
-	if idx >= len(rainGradient) {
-		idx = len(rainGradient) - 1
+	if idx >= len(rainAnsiPfx) {
+		idx = len(rainAnsiPfx) - 1
 	}
-	return lipgloss.NewStyle().Foreground(rainGradient[idx]).Render(string(ch))
+	return rainAnsiPfx[idx] + string(ch) + ansiReset
 }
 
 // ── Navigation message types ──────────────────────────────────────────────────
 
 type NavigateToMenu struct{}
+
+// NavigateBackToCourse returns to the currently active course view rather than
+// the top-level course list. App resolves this using the active course ID.
+type NavigateBackToCourse struct{}
 
 type NavigateToConnectChoice struct{}
 
@@ -529,7 +554,7 @@ func (m *MenuScreen) suggestedLesson() *lesson.Lesson {
 			for i := range sec.Lessons {
 				l := &sec.Lessons[i]
 				s := m.progress[l.ID]
-				if s > 0 && s < 3 && s < bestStars {
+				if s > 0 && s < l.MaxStars() && s < bestStars {
 					bestStars = s
 					best = l
 				}
@@ -777,6 +802,9 @@ func (m *MenuScreen) enterCourse(c lesson.Course) (tea.Model, tea.Cmd) {
 	// First visit: fire a course-specific intro only when the course opted in.
 	if len(c.CourseIntro) > 0 && m.checkCourseIntro != nil && m.checkCourseIntro(c.ID) {
 		return m, backCmd(showCourseIntroMsg{course: c})
+	}
+	if c.Layout == lesson.CourseLayoutPath {
+		return m, backCmd(enterCoursePathMsg{course: c})
 	}
 	m.enterCourseDirectly(c)
 	return m, nil
@@ -1091,11 +1119,17 @@ func (m *MenuScreen) View() string {
 		return lipgloss.NewStyle().Width(m.Width).Align(lipgloss.Right).Render(s)
 	}
 
-	// Title — subtle color pulse via mascot frame.
+	// Title — terminal-style header with subtle pulse.
 	titleColors := []lipgloss.Color{"212", "213", "213", "212"}
 	tc := titleColors[m.mascotFrame%len(titleColors)]
-	pTitle := lipgloss.NewStyle().Bold(true).Foreground(tc).Render("ztutor")
+	pTitle := lipgloss.NewStyle().Bold(true).Foreground(tc).Render("ztutor // navigator")
+	subTitle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim)).Render("course graph :: lesson index :: progress trace")
 	b.WriteString(alignR(pTitle))
+	b.WriteString("\n")
+	b.WriteString(alignR(subTitle))
+	b.WriteString("\n")
+	headerSep := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBorder)).Render(strings.Repeat("─", max(12, m.Width)))
+	b.WriteString(alignR(headerSep))
 	b.WriteString("\n\n")
 
 	T := m.loc.T
@@ -1143,13 +1177,13 @@ func (m *MenuScreen) View() string {
 	b.WriteString(alignR(dim(statsLine)) + "\n")
 
 	// Language-aware cycling snippet.
-	b.WriteString(alignR(codeStyle(m.currentSnippet())) + "\n")
+	b.WriteString(alignR(codeStyle("$ " + m.currentSnippet())) + "\n")
 
 	// Spaced-repetition hint.
 	if s := m.suggestedLesson(); s != nil {
 		stars := m.progress[s.ID]
 		filledS := strings.Repeat("★", stars)
-		emptyS := strings.Repeat("☆", 3-stars)
+		emptyS := strings.Repeat("☆", s.MaxStars()-stars)
 		starStr := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGold)).Render(filledS + emptyS)
 		reviewStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAmber))
 		reviewLine := reviewStyle.Render(T("menu.review_label")) + " " + dim(s.Title) + " " + starStr + dim("  "+T("menu.review_hint"))
@@ -1167,9 +1201,10 @@ func (m *MenuScreen) View() string {
 
 	// Search bar.
 	if m.searchActive {
-		b.WriteString(alignR(dim("/ ") + m.searchInput.View()))
+		searchPrefix := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent)).Render("[/]")
+		b.WriteString(alignR(searchPrefix + " " + m.searchInput.View()))
 	} else {
-		b.WriteString(alignR(dim(T("menu.search_hint"))))
+		b.WriteString(alignR(dim("[/] " + T("menu.search_hint"))))
 	}
 	b.WriteString("\n\n")
 
@@ -1209,6 +1244,13 @@ func (m *MenuScreen) renderCourseView(b *strings.Builder) string {
 	}
 
 	panelW := m.Width
+	header := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorDim)).
+		Render(fmt.Sprintf("[courses:%02d] [cursor:%02d]", len(courses), m.courseCursor+1))
+	b.WriteString(alignR(header))
+	b.WriteString("\n")
+	b.WriteString(alignR(lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBorder)).Render(strings.Repeat("─", max(12, m.Width)))))
+	b.WriteString("\n")
 
 	align := lipgloss.Left
 	if rtl {
@@ -1381,11 +1423,31 @@ func (m *MenuScreen) renderLessonView(b *strings.Builder) string {
 	}
 
 	rtl := m.loc.IsRTL()
+	courseHdr := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent)).Render("[course] " + m.selectedCourse.Title)
+	if rtl {
+		courseHdr = lipgloss.NewStyle().Width(m.Width).Align(lipgloss.Right).Render(courseHdr)
+	}
+	b.WriteString(courseHdr)
+	b.WriteString("\n")
+	metaHdr := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim)).Render(
+		fmt.Sprintf("[items:%02d] [cursor:%02d]", len(m.displayItems), m.lessonCursor+1),
+	)
+	if rtl {
+		metaHdr = lipgloss.NewStyle().Width(m.Width).Align(lipgloss.Right).Render(metaHdr)
+	}
+	b.WriteString(metaHdr)
+	b.WriteString("\n")
 	tabs := m.renderSectionTabs()
 	if rtl {
 		tabs = lipgloss.NewStyle().Width(m.Width).Align(lipgloss.Right).Render(tabs)
 	}
 	b.WriteString(tabs)
+	b.WriteString("\n")
+	sep := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBorder)).Render(strings.Repeat("─", max(12, m.Width)))
+	if rtl {
+		sep = lipgloss.NewStyle().Width(m.Width).Align(lipgloss.Right).Render(sep)
+	}
+	b.WriteString(sep)
 	b.WriteString("\n")
 
 	ph := m.panelHeight()
@@ -1456,6 +1518,7 @@ func (m *MenuScreen) renderSectionTabs() string {
 		Padding(0, 1)
 	inactiveStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(ColorDim)).
+		BorderForeground(lipgloss.Color(ColorBorder)).
 		Padding(0, 1)
 
 	var tabs []string
@@ -1465,22 +1528,31 @@ func (m *MenuScreen) renderSectionTabs() string {
 			title = sec.Type
 		}
 		if i == m.sectionIndex {
-			tabs = append(tabs, activeStyle.Render(title))
+			tabs = append(tabs, activeStyle.Render("[" + title + "]"))
 		} else {
-			tabs = append(tabs, inactiveStyle.Render(title))
+			tabs = append(tabs, inactiveStyle.Render("<" + title + ">"))
 		}
 	}
 	return strings.Join(tabs, " ")
 }
 
 func (m *MenuScreen) renderLessonLine(di displayItem) string {
+	kindBadge := "[LES]"
+	switch di.kind {
+	case "quiz":
+		kindBadge = "[QIZ]"
+	case "challenge":
+		kindBadge = "[CHL]"
+	}
+	kindStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHex))
+
 	// Stars / completion indicator (3 visible chars).
 	var starStr string
 	switch di.kind {
 	case "lesson":
-		starStr = starsStyle(m.progress[di.lesson.ID])
+		starStr = starsStyle(m.progress[di.lesson.ID], di.lesson.MaxStars())
 	case "quiz":
-		starStr = starsStyle(m.progress[di.quiz.ID])
+		starStr = starsStyle(m.progress[di.quiz.ID], 3)
 	default:
 		starStr = dim("   ")
 	}
@@ -1517,7 +1589,7 @@ func (m *MenuScreen) renderLessonLine(di displayItem) string {
 		suffix = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAmber)).Render("[P]")
 	}
 
-	return starStr + "  " + diffBadge + "  " + title + suffix
+	return kindStyle.Render(kindBadge) + "  " + starStr + "  " + diffBadge + "  " + title + suffix
 }
 
 // renderFooter builds the mascot panel + helpbar string that is pinned to the

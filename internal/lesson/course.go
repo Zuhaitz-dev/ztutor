@@ -25,6 +25,15 @@ type Section struct {
 	Schedule       string
 }
 
+// CourseLayout controls how the TUI presents the lesson list for a course.
+// Declared in course.yaml under the layout key.
+type CourseLayout string
+
+const (
+	CourseLayoutList CourseLayout = "list" // default: flat scrollable list
+	CourseLayoutPath CourseLayout = "path" // Duolingo-style sequential node path
+)
+
 type Course struct {
 	ID          string
 	Title       string
@@ -45,6 +54,10 @@ type Course struct {
 	CourseIntro          []string
 	EnrollmentRequired   bool
 	ProgrammingLanguages []string
+
+	// Layout controls the TUI presentation mode for this course's lesson list.
+	// Defaults to CourseLayoutList when not specified in course.yaml.
+	Layout CourseLayout
 
 	// Encrypted is true when this course was loaded from an encrypted .course
 	// file. The TUI shows a distinct badge for encrypted courses.
@@ -73,6 +86,7 @@ type courseManifest struct {
 	Description string `yaml:"description"`
 	Language    string `yaml:"language"`
 	Order       int    `yaml:"order"`
+	Layout      string `yaml:"layout,omitempty"`
 
 	Enrollment struct {
 		Required bool `yaml:"required"`
@@ -133,6 +147,12 @@ func LoadCourseLang(courseDir, lang string) (Course, error) {
 		c.CourseIntro = m.CourseIntro
 		if localized := m.CourseIntroI18N[lang]; len(localized) > 0 {
 			c.CourseIntro = localized
+		}
+		switch CourseLayout(m.Layout) {
+		case CourseLayoutPath:
+			c.Layout = CourseLayoutPath
+		default:
+			c.Layout = CourseLayoutList
 		}
 		for _, sm := range m.Sections {
 			s := Section{

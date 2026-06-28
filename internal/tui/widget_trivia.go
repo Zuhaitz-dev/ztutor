@@ -12,6 +12,14 @@ func newTriviaWidget(items []string) *TriviaWidget {
 	return &TriviaWidget{items: items}
 }
 
+// SetItems replaces the trivia list, e.g. after a locale switch.
+func (w *TriviaWidget) SetItems(items []string) {
+	w.items = items
+	if w.current >= len(w.items) {
+		w.current = 0
+	}
+}
+
 // Available reports whether there are any trivia items to show.
 func (w *TriviaWidget) Available() bool { return len(w.items) > 0 }
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"ztutor/internal/db"
+	"ztutor/internal/i18n"
 	"ztutor/internal/lesson"
 	"ztutor/internal/license"
 	"ztutor/internal/logutil"
@@ -18,18 +19,22 @@ import (
 // ── Student List ──────────────────────────────────────────────────────────────
 
 type adminStudentListModel struct {
-	db *db.DB
+	db  *db.DB
+	loc *i18n.Locale
 	sized
 	users  []db.User
 	offset int
 }
 
-func newAdminStudentList(database *db.DB, w, h int) *adminStudentListModel {
+func newAdminStudentList(database *db.DB, loc *i18n.Locale, w, h int) *adminStudentListModel {
+	if loc == nil {
+		loc = i18n.New("en")
+	}
 	users, err := database.ListUsers()
 	if err != nil {
 		logutil.Warn("admin: ListUsers: %v", err)
 	}
-	return &adminStudentListModel{db: database, sized: sized{Width: w, Height: h}, users: users}
+	return &adminStudentListModel{db: database, loc: loc, sized: sized{Width: w, Height: h}, users: users}
 }
 
 func (m *adminStudentListModel) Init() tea.Cmd { return nil }
@@ -77,9 +82,15 @@ func (m *adminStudentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *adminStudentListModel) View() string {
+	rtl := m.loc.IsRTL()
+	textAlign := lipgloss.Left
+	if rtl {
+		textAlign = lipgloss.Right
+	}
 	border := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(ColorAccent)).
+		Align(textAlign).
 		Padding(1, 2).
 		Width(62)
 
@@ -99,20 +110,37 @@ func (m *adminStudentListModel) View() string {
 	b.WriteString(title)
 	b.WriteString("\n\n")
 
+	cursor := "▶ "
+	noCursor := "  "
+	if rtl {
+		cursor = " ◀"
+		noCursor = "  "
+	}
+
 	for i, u := range m.users {
-		status := enabledStyle.Render("[+]") + " "
+		badge := enabledStyle.Render("[+]")
 		if !u.Enabled {
-			status = disabledStyle.Render("[-]") + " "
+			badge = disabledStyle.Render("[-]")
 		}
 		role := dim("student")
 		if u.Role == db.RoleAdmin {
 			role = adminStyle.Render("admin")
 		}
-		line := fmt.Sprintf("%s%-20s %s", status, u.Username, role)
-		if i == m.offset {
-			line = cursorStyle.Render("> " + line)
+		var line string
+		if rtl {
+			line = role + " " + fmt.Sprintf("%-20s", u.Username) + " " + badge
+			if i == m.offset {
+				line = cursorStyle.Render(line + cursor)
+			} else {
+				line = line + noCursor
+			}
 		} else {
-			line = "  " + line
+			line = badge + " " + fmt.Sprintf("%-20s", u.Username) + " " + role
+			if i == m.offset {
+				line = cursorStyle.Render(cursor + line)
+			} else {
+				line = noCursor + line
+			}
 		}
 		b.WriteString(line + "\n")
 	}
@@ -132,18 +160,22 @@ type adminAddStudentModel struct {
 	input textinput.Model
 	db    *db.DB
 	lic   *license.State
+	loc   *i18n.Locale
 	sized
 	msg         string
 	showPending bool // password shown, waiting for keypress to navigate
 }
 
-func newAdminAddStudent(database *db.DB, lic *license.State, w, h int) *adminAddStudentModel {
+func newAdminAddStudent(database *db.DB, lic *license.State, loc *i18n.Locale, w, h int) *adminAddStudentModel {
+	if loc == nil {
+		loc = i18n.New("en")
+	}
 	ti := textinput.New()
 	ti.Placeholder = "student username"
 	ti.CharLimit = 32
 	ti.Width = 30
 	ti.Focus()
-	return &adminAddStudentModel{input: ti, db: database, lic: lic, sized: sized{Width: w, Height: h}}
+	return &adminAddStudentModel{input: ti, db: database, lic: lic, loc: loc, sized: sized{Width: w, Height: h}}
 }
 
 func (m *adminAddStudentModel) Init() tea.Cmd { return nil }
@@ -227,12 +259,16 @@ type adminPasswordResetModel struct {
 	username string
 	input    textinput.Model
 	db       *db.DB
+	loc      *i18n.Locale
 	sized
 	msg  string
 	done bool
 }
 
-func newAdminPasswordReset(username string, database *db.DB, w, h int) *adminPasswordResetModel {
+func newAdminPasswordReset(username string, database *db.DB, loc *i18n.Locale, w, h int) *adminPasswordResetModel {
+	if loc == nil {
+		loc = i18n.New("en")
+	}
 	ti := textinput.New()
 	ti.Placeholder = "new password (blank = generate)"
 	ti.CharLimit = 64
@@ -242,6 +278,7 @@ func newAdminPasswordReset(username string, database *db.DB, w, h int) *adminPas
 		username: username,
 		input:    ti,
 		db:       database,
+		loc:      loc,
 		sized:    sized{Width: w, Height: h},
 	}
 }
@@ -534,7 +571,7 @@ func (m *adminStudentDetailModel) View() string {
 	}
 
 	for _, item := range items[m.offset:end] {
-		stars := starsStyle(item.stars)
+		stars := starsStyle(item.stars, 3)
 		title := item.title
 		if len(title) > 30 {
 			title = title[:28] + ".."

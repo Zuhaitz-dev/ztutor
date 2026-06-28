@@ -12,6 +12,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"sync"
+	"time"
 	"syscall"
 	"unsafe"
 
@@ -57,6 +59,13 @@ type Server struct {
 	db       *db.DB
 	listener net.Listener
 	stopCh   chan struct{}
+	stopOnce sync.Once
+	readyCh  chan struct{} // closed once the server is accepting connections
+
+	// setup-token rate limiting (only active when no users exist)
+	tokenMu       sync.Mutex
+	tokenExpiry   time.Time
+	tokenAttempts int
 }
 
 func New(cfg Config, tui *TUIProvider) (*Server, error) {
@@ -90,7 +99,8 @@ func New(cfg Config, tui *TUIProvider) (*Server, error) {
 		config: cfg,
 		tui:    tui,
 		db:     database,
-		stopCh: make(chan struct{}),
+		stopCh:  make(chan struct{}),
+		readyCh: make(chan struct{}),
 	}, nil
 }
 
@@ -119,10 +129,10 @@ func (s *Server) ListenAndServe() error {
 		},
 		PasswordCallback: func(meta gossh.ConnMetadata, password []byte) (*gossh.Permissions, error) {
 			if !hasUsers {
-				if db.SecureCompare(string(password), s.config.SetupToken) {
-					return &gossh.Permissions{Extensions: map[string]string{"username": meta.User()}}, nil
+				if err := s.checkSetupToken(string(password)); err != nil {
+					return nil, err
 				}
-				return nil, fmt.Errorf("invalid setup token")
+				return &gossh.Permissions{Extensions: map[string]string{"username": meta.User()}}, nil
 			}
 			_, err := s.db.Authenticate(meta.User(), string(password))
 			if err != nil {
@@ -142,10 +152,10 @@ func (s *Server) ListenAndServe() error {
 				return nil, fmt.Errorf("no password provided")
 			}
 			if !hasUsers {
-				if db.SecureCompare(answers[0], s.config.SetupToken) {
-					return &gossh.Permissions{Extensions: map[string]string{"username": meta.User()}}, nil
+				if err := s.checkSetupToken(answers[0]); err != nil {
+					return nil, err
 				}
-				return nil, fmt.Errorf("invalid setup token")
+				return &gossh.Permissions{Extensions: map[string]string{"username": meta.User()}}, nil
 			}
 			_, err = s.db.Authenticate(meta.User(), answers[0])
 			if err != nil {
@@ -161,6 +171,12 @@ func (s *Server) ListenAndServe() error {
 		return fmt.Errorf("listen: %w", err)
 	}
 	s.listener = listener
+	if !hasUsers {
+		s.tokenMu.Lock()
+		s.tokenExpiry = time.Now().Add(24 * time.Hour)
+		s.tokenMu.Unlock()
+	}
+	close(s.readyCh) // unblock any waiters
 	defer listener.Close()
 
 	if hasUsers {
@@ -168,10 +184,11 @@ func (s *Server) ListenAndServe() error {
 		if err != nil {
 			logutil.Warn("cannot count users: %v", err)
 		} else {
-			logutil.Info("serving %d student(s)", count)
+			logutil.Info("serving %d student(s) on %s", count, listener.Addr())
 		}
 	} else {
-		logutil.Info("no users yet — first connection with the setup token will be admin")
+		logutil.Info("no users yet — SSH with setup token: %s", s.config.SetupToken)
+		logutil.Info("  connect: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
 	}
 
 	var sem chan struct{}
@@ -207,16 +224,48 @@ func (s *Server) ListenAndServe() error {
 	}
 }
 
-func (s *Server) Shutdown(ctx context.Context) {
-	close(s.stopCh)
-	if s.listener != nil {
-		s.listener.Close()
+// Ready returns a channel that is closed once the server is accepting connections.
+func (s *Server) Ready() <-chan struct{} { return s.readyCh }
+
+// ListenAddr returns the address the server is listening on, or "" if not yet started.
+func (s *Server) ListenAddr() string {
+	if s.listener == nil {
+		return ""
 	}
+	return s.listener.Addr().String()
+}
+
+func (s *Server) Shutdown(ctx context.Context) {
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+		if s.listener != nil {
+			s.listener.Close()
+		}
+	})
 }
 
 func (s *Server) Close() error {
 	if s.db != nil {
 		return s.db.Close()
+	}
+	return nil
+}
+
+// checkSetupToken validates the setup token with expiry and brute-force protection.
+// Locked out after 5 failed attempts; expires 24 h after the server binds.
+func (s *Server) checkSetupToken(candidate string) error {
+	s.tokenMu.Lock()
+	defer s.tokenMu.Unlock()
+	if s.tokenAttempts >= 5 {
+		return fmt.Errorf("setup token locked after too many failed attempts — restart the server to reset")
+	}
+	if time.Now().After(s.tokenExpiry) {
+		return fmt.Errorf("setup token expired (24 h window) — restart the server to get a new one")
+	}
+	if !db.SecureCompare(candidate, s.config.SetupToken) {
+		s.tokenAttempts++
+		remaining := 5 - s.tokenAttempts
+		return fmt.Errorf("invalid setup token (%d attempt(s) remaining)", remaining)
 	}
 	return nil
 }

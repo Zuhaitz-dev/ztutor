@@ -5,10 +5,10 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -30,10 +30,11 @@ func Open(path string) (*DB, error) {
 		f.Close()
 	}
 
-	conn, err := sql.Open("sqlite", path+"?_journal_mode=WAL")
+	conn, err := sql.Open("sqlite", path+"?_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+	conn.SetMaxIdleConns(5)
 
 	if err := migrate(conn); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -46,66 +47,124 @@ func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
-func migrate(conn *sql.DB) error {
-	_, err := conn.Exec(`
-		CREATE TABLE IF NOT EXISTS progress (
-			username   TEXT NOT NULL,
-			lesson_id  TEXT NOT NULL,
-			completed  INTEGER DEFAULT 0,
-			stars      INTEGER DEFAULT 0,
-			started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (username, lesson_id)
-		);
-		CREATE TABLE IF NOT EXISTS settings (
-			username TEXT NOT NULL,
-			key      TEXT NOT NULL,
-			value    TEXT NOT NULL,
-			PRIMARY KEY (username, key)
-		);
-		CREATE TABLE IF NOT EXISTS achievements (
-			username    TEXT NOT NULL,
-			achievement TEXT NOT NULL,
-			earned_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (username, achievement)
-		);
-		CREATE TABLE IF NOT EXISTS users (
-			username   TEXT NOT NULL PRIMARY KEY,
-			password   TEXT NOT NULL DEFAULT '',
-			role       TEXT NOT NULL DEFAULT 'student',
-			enabled    INTEGER NOT NULL DEFAULT 1,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE TABLE IF NOT EXISTS enrollments (
-			username    TEXT NOT NULL,
-			course_id   TEXT NOT NULL,
-			enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (username, course_id)
-		);
-		CREATE TABLE IF NOT EXISTS challenge_progress (
-			username    TEXT NOT NULL,
-			challenge_id TEXT NOT NULL,
-			course_id   TEXT NOT NULL,
-			completed   INTEGER DEFAULT 0,
-			attempts    INTEGER DEFAULT 0,
-			best_output TEXT,
-			completed_at TIMESTAMP,
-			PRIMARY KEY (username, challenge_id)
-		);
-	`)
-	if err != nil {
-		return err
-	}
-	migrateIgnoreDup(conn, `ALTER TABLE progress ADD COLUMN stars INTEGER DEFAULT 0`)
-	migrateIgnoreDup(conn, `ALTER TABLE progress ADD COLUMN completed_at TIMESTAMP`)
-	_, err = conn.Exec(`UPDATE progress SET stars = 1 WHERE completed = 1 AND stars = 0`)
-	return err
+// migrations is an ordered list of schema changes. Each entry runs exactly
+// once, identified by its index (= version number, 1-based).
+// APPEND ONLY — never edit or reorder existing entries.
+var migrations = []string{
+	// v1: base schema
+	`CREATE TABLE IF NOT EXISTS progress (
+		username   TEXT NOT NULL,
+		lesson_id  TEXT NOT NULL,
+		completed  INTEGER DEFAULT 0,
+		started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (username, lesson_id)
+	);
+	CREATE TABLE IF NOT EXISTS settings (
+		username TEXT NOT NULL,
+		key      TEXT NOT NULL,
+		value    TEXT NOT NULL,
+		PRIMARY KEY (username, key)
+	);
+	CREATE TABLE IF NOT EXISTS achievements (
+		username    TEXT NOT NULL,
+		achievement TEXT NOT NULL,
+		earned_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (username, achievement)
+	);
+	CREATE TABLE IF NOT EXISTS users (
+		username   TEXT NOT NULL PRIMARY KEY,
+		password   TEXT NOT NULL DEFAULT '',
+		role       TEXT NOT NULL DEFAULT 'student',
+		enabled    INTEGER NOT NULL DEFAULT 1,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE TABLE IF NOT EXISTS enrollments (
+		username    TEXT NOT NULL,
+		course_id   TEXT NOT NULL,
+		enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (username, course_id)
+	);
+	CREATE TABLE IF NOT EXISTS challenge_progress (
+		username     TEXT NOT NULL,
+		challenge_id TEXT NOT NULL,
+		course_id    TEXT NOT NULL,
+		completed    INTEGER DEFAULT 0,
+		attempts     INTEGER DEFAULT 0,
+		best_output  TEXT,
+		completed_at TIMESTAMP,
+		PRIMARY KEY (username, challenge_id)
+	)`,
+
+	// v2: add stars + completed_at to progress (idempotent via IF NOT EXISTS)
+	`ALTER TABLE progress ADD COLUMN stars INTEGER DEFAULT 0`,
+	`ALTER TABLE progress ADD COLUMN completed_at TIMESTAMP`,
+	`UPDATE progress SET stars = 1 WHERE completed = 1 AND stars = 0`,
+
+	// v3: indexes for leaderboard and per-user queries
+	`CREATE INDEX IF NOT EXISTS idx_progress_username  ON progress (username)`,
+	`CREATE INDEX IF NOT EXISTS idx_progress_completed ON progress (completed, username)`,
+	`CREATE INDEX IF NOT EXISTS idx_enrollments_user   ON enrollments (username)`,
 }
 
-func migrateIgnoreDup(db *sql.DB, stmt string) {
-	_, err := db.Exec(stmt)
-	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
-		logutil.Error("db migration: %s: %v", stmt, err)
+// bootstrapVersion is the highest migration already applied by old deployments.
+const bootstrapVersion = 4
+
+func migrate(conn *sql.DB) error {
+	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+		version    INTEGER PRIMARY KEY,
+		applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
 	}
+
+	var current int
+	conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current)
+
+	// First open with the new versioned system on an existing database:
+	// the old code already applied v1–v4 (CREATE TABLE + ALTER TABLE + UPDATE).
+	// Record them as done so we don't try to re-run ALTER TABLE and fail.
+	if current == 0 && tableHasColumn(conn, "progress", "stars") {
+		for v := 1; v <= bootstrapVersion; v++ {
+			conn.Exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)`, v)
+		}
+		conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current)
+		logutil.Debug("db: bootstrapped existing schema to v%d", current)
+	}
+
+	for i, stmt := range migrations {
+		ver := i + 1
+		if ver <= current {
+			continue
+		}
+		if _, err := conn.Exec(stmt); err != nil {
+			return fmt.Errorf("migration v%d: %w", ver, err)
+		}
+		if _, err := conn.Exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)`, ver); err != nil {
+			return fmt.Errorf("record migration v%d: %w", ver, err)
+		}
+		logutil.Debug("db: migration v%d applied", ver)
+	}
+	return nil
+}
+
+// tableHasColumn returns true if the named column exists in the SQLite table.
+func tableHasColumn(conn *sql.DB, table, column string) bool {
+	rows, err := conn.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notNull int
+		var dflt sql.NullString
+		var pk int
+		if rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk) == nil && name == column {
+			return true
+		}
+	}
+	return false
 }
 
 type UserRole string
@@ -255,7 +314,7 @@ func (db *DB) GetUserSetting(username, key string) (string, error) {
 		username, key,
 	).Scan(&val)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
 		return "", err

@@ -327,6 +327,15 @@ func (es *ExerciseScreen) SetLocale(loc *i18n.Locale) {
 	es.runInput.Placeholder = loc.T("exercise.placeholder.stdin")
 }
 
+// SetLesson refreshes locale-dependent lesson metadata without replacing the
+// learner's in-progress editor state.
+func (es *ExerciseScreen) SetLesson(l lesson.Lesson) {
+	es.lesson = l
+	es.hint.SetHints(l.Hints)
+	es.trivia.SetItems(l.Trivia)
+	es.reference.SetReferences(l.References)
+}
+
 func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -340,7 +349,7 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if es.interKill != nil {
 					es.interKill()
 				}
-				return es, backCmd(NavigateToMenu{})
+				return es, backCmd(NavigateBackToCourse{})
 			case KeySelect:
 				line := es.runInput.Value()
 				if es.interWrite != nil {
@@ -361,7 +370,7 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch msg.String() {
 		case KeyBackEditor:
-			return es, backCmd(NavigateToMenu{})
+			return es, backCmd(NavigateBackToCourse{})
 
 		case KeyInputs:
 			es.compositor.FocusNext()
@@ -453,12 +462,13 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return es, nil
 
 		case KeyHintEx:
-			if !es.hint.Available() {
+			if es.compositor.FocusID() != WidgetEditor || es.passed {
+				if es.hint.Available() {
+					es.hint.Next()
+					es.mascot.Speak(es.loc.T("exercise.mochi.hint", es.hint.CurrentIndex()+1), MoodCurious)
+				}
 				return es, nil
 			}
-			es.hint.Next()
-			es.mascot.Speak(es.loc.T("exercise.mochi.hint", es.hint.CurrentIndex()+1), MoodCurious)
-			return es, nil
 
 		case KeyMochi:
 			if es.compositor.FocusID() != WidgetEditor || es.passed {
@@ -471,11 +481,13 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case KeyTrivia:
-			if es.trivia.Available() {
-				es.trivia.Next()
-				es.mascot.Speak(es.trivia.Current(), MoodCurious)
+			if es.compositor.FocusID() != WidgetEditor || es.passed {
+				if es.trivia.Available() {
+					es.trivia.Next()
+					es.mascot.Speak(es.trivia.Current(), MoodCurious)
+				}
+				return es, nil
 			}
-			return es, nil
 
 		case KeyHexView:
 			es.hexViewer.Toggle()

@@ -100,7 +100,7 @@ func (cs *ChallengeScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cs.submitted {
 			switch msg.String() {
 			case KeySelect, KeyBack, KeyBackAlt, KeySelectAlt:
-				return cs, backCmd(NavigateToMenu{})
+				return cs, backCmd(NavigateBackToCourse{})
 			case KeyRun:
 				// re-submit
 			case KeyMochi:
@@ -111,7 +111,7 @@ func (cs *ChallengeScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch msg.String() {
 		case KeyBackEditor, KeyQuit:
-			return cs, backCmd(NavigateToMenu{})
+			return cs, backCmd(NavigateBackToCourse{})
 		case KeyRun:
 			if !cs.compiling {
 				cs.compiling = true

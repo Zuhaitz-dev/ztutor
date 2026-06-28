@@ -18,13 +18,25 @@ make build
 ./ztutord
 ```
 
-The server prints a setup token on first run. Connect in another terminal:
+On first run the server prints a setup token and the SSH address to connect to. The token is valid for 24 hours and locks after 5 failed attempts.
+
+Connect in another terminal:
 
 ```bash
 ssh yourname@localhost -p 2222
 ```
 
 Paste the setup token when prompted to create the first account.
+
+### Local admin dashboard
+
+If you are running `ztutord` on the same machine you are sitting at, use the `-local` flag to open the admin dashboard directly in your terminal instead of SSHing in:
+
+```bash
+./ztutord -local
+```
+
+The SSH server still starts in the background so students can connect while you manage the server from the same terminal session. Press `q` or `Ctrl+C` in the admin dashboard to exit; the SSH server shuts down cleanly.
 
 ztutor includes a small starter course with hello world lessons in multiple programming languages.
 Full course content can still be distributed separately. If `courses/` is empty
@@ -35,7 +47,7 @@ directories or `.course` packages to make lessons available.
 
 The local `ztutor` client supports two controller input paths:
 
-**Path 1 — native Linux gamepad** (`/dev/input`)
+**Path 1: native Linux gamepad** (`/dev/input`)
 
 Plug in a controller. If it registers as an `event-joystick` device (most USB/Bluetooth gamepads do), ztutor picks it up automatically. A DualShock 4 or Xbox controller usually works without any extra setup.
 
@@ -58,7 +70,7 @@ sudo usermod -aG input $USER  # log out and back in after this
 
 Or install a udev rule that grants access for a specific USB vendor/product ID.
 
-**Path 2 — keyboard mapper (F13–F20)**
+**Path 2: keyboard mapper (F13-F20)**
 
 Use this if your controller appears as a generic HID device or you want a software remapper like `xboxdrv`, `antimicro`, `reWASD`, or Steam Input. Configure your mapper to send these key codes:
 
@@ -73,7 +85,7 @@ Use this if your controller appears as a generic HID device or you want a softwa
 | F19 | Run / submit (Ctrl+S) |
 | F20 | Hint (?) |
 
-Both paths work simultaneously — you can have the native driver and a mapper active at the same time.
+Both paths work simultaneously; you can have the native driver and a mapper active at the same time.
 
 ## Deployment
 
@@ -274,6 +286,19 @@ Premium courses are distributed as `.course` files: AES-256-GCM encrypted archiv
 ## Admin dashboard
 
 Available when a license with `admin_ui` is active. The first connection creates the admin account. From the dashboard you can manage students, create and edit lessons (via a guided wizard), manage courses, and view student progress.
+
+The admin dashboard is accessible two ways:
+
+- **SSH:** `ssh adminname@yourhost -p 2222` (the server detects the admin role and opens the admin TUI instead of the student one)
+- **Local terminal:** run `ztutord -local` to open the dashboard directly in the current terminal without needing SSH. Useful for single-machine setups.
+
+The interface is fully localized (English, Spanish, Arabic, Chinese) and respects right-to-left layout when Arabic is selected.
+
+## Security notes
+
+The setup token printed at startup is valid for **24 hours** and is permanently locked after **5 failed attempts**. Restart `ztutord` to generate a new token. Once the first user account exists, the token is no longer accepted.
+
+The database uses SQLite in WAL mode. All writes are automatically serialized using a 5-second busy-timeout retry, so concurrent SSH sessions never produce lock errors.
 
 ## Sandbox security
 

@@ -102,7 +102,7 @@ func TestAdminStudentList_View(t *testing.T) {
 	_ = database.CreateUser("alice", "pw1", db.RoleStudent)
 	_ = database.CreateUser("bob", "pw2", db.RoleStudent)
 
-	m := newAdminStudentList(database, 80, 24)
+	m := newAdminStudentList(database, nil, 80, 24)
 	view := m.View()
 
 	assertViewNonEmpty(t, "student list", view)
@@ -118,7 +118,7 @@ func TestAdminStudentList_View(t *testing.T) {
 func TestAdminStudentList_View_Empty(t *testing.T) {
 	database := testDB(t)
 
-	m := newAdminStudentList(database, 80, 24)
+	m := newAdminStudentList(database, nil, 80, 24)
 	view := m.View()
 
 	assertViewNonEmpty(t, "empty student list", view)
@@ -129,7 +129,7 @@ func TestAdminStudentList_View_Empty(t *testing.T) {
 func TestAdminAddStudent_Flow(t *testing.T) {
 	database := testDB(t)
 
-	m := newAdminAddStudent(database, nil, 80, 24)
+	m := newAdminAddStudent(database, nil, nil, 80, 24)
 
 	// Type a username into the text input.
 	m.input.SetValue("testuser")
@@ -168,7 +168,7 @@ func TestAdminAddStudent_Flow(t *testing.T) {
 func TestAdminAddStudent_EmptyName(t *testing.T) {
 	database := testDB(t)
 
-	m := newAdminAddStudent(database, nil, 80, 24)
+	m := newAdminAddStudent(database, nil, nil, 80, 24)
 
 	// Press enter with empty username.
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -188,7 +188,7 @@ func TestAdminAddStudent_LicenseSeatLimit(t *testing.T) {
 		MaxStudents: 1,
 	}
 
-	m := newAdminAddStudent(database, lic, 80, 24)
+	m := newAdminAddStudent(database, lic, nil, 80, 24)
 	m.input.SetValue("newuser")
 
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -873,7 +873,7 @@ func TestAdminStudentList_CursorKeys(t *testing.T) {
 	_ = database.CreateUser("alice", "pw1", db.RoleStudent)
 	_ = database.CreateUser("bob", "pw2", db.RoleStudent)
 
-	m := newAdminStudentList(database, 80, 24)
+	m := newAdminStudentList(database, nil, 80, 24)
 
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	m2 := model.(*adminStudentListModel)
@@ -892,7 +892,7 @@ func TestAdminStudentList_EnterNavigatesToDetail(t *testing.T) {
 	database := testDB(t)
 	_ = database.CreateUser("alice", "pw1", db.RoleStudent)
 
-	m := newAdminStudentList(database, 80, 24)
+	m := newAdminStudentList(database, nil, 80, 24)
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
@@ -914,7 +914,7 @@ func TestAdminStudentList_BackKeys(t *testing.T) {
 
 	for _, key := range []rune{'b', 'q'} {
 		t.Run(string(key), func(t *testing.T) {
-			m := newAdminStudentList(database, 80, 24)
+			m := newAdminStudentList(database, nil, 80, 24)
 			_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
 			if cmd == nil {
 				t.Fatal("expected cmd for back key")
@@ -1032,7 +1032,7 @@ func TestAdminPasswordReset_View(t *testing.T) {
 	database := testDB(t)
 	_ = database.CreateUser("alice", "pw", db.RoleStudent)
 
-	m := newAdminPasswordReset("alice", database, 80, 24)
+	m := newAdminPasswordReset("alice", database, nil, 80, 24)
 	view := m.View()
 
 	assertViewNonEmpty(t, "password reset", view)
@@ -1046,7 +1046,7 @@ func TestAdminPasswordReset_DoneKey(t *testing.T) {
 	database := testDB(t)
 	_ = database.CreateUser("alice", "pw", db.RoleStudent)
 
-	m := newAdminPasswordReset("alice", database, 80, 24)
+	m := newAdminPasswordReset("alice", database, nil, 80, 24)
 	m.done = true
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
@@ -1063,7 +1063,7 @@ func TestAdminPasswordReset_GeneratePassword(t *testing.T) {
 	database := testDB(t)
 	_ = database.CreateUser("alice", "pw", db.RoleStudent)
 
-	m := newAdminPasswordReset("alice", database, 80, 24)
+	m := newAdminPasswordReset("alice", database, nil, 80, 24)
 
 	// Press enter with empty input (generates a random password).
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})

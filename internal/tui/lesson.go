@@ -14,24 +14,26 @@ import (
 )
 
 type LessonScreen struct {
-	lesson   lesson.Lesson
-	viewport viewport.Model
-	answered bool
+	lesson        lesson.Lesson
+	previousStars int
+	viewport      viewport.Model
+	answered      bool
 	sized
 	loc *i18n.Locale
 }
 
-func NewLessonScreen(l lesson.Lesson, width, height int, loc *i18n.Locale) *LessonScreen {
+func NewLessonScreen(l lesson.Lesson, previousStars, width, height int, loc *i18n.Locale) *LessonScreen {
 	if loc == nil {
 		loc = i18n.New("en")
 	}
 	vp := viewport.New(width-2, height-5)
 
 	ls := &LessonScreen{
-		lesson:   l,
-		viewport: vp,
-		sized:    sized{Width: width, Height: height},
-		loc:      loc,
+		lesson:        l,
+		previousStars: previousStars,
+		viewport:      vp,
+		sized:         sized{Width: width, Height: height},
+		loc:           loc,
 	}
 	ls.viewport.SetContent(ls.renderContent())
 	return ls
@@ -49,7 +51,10 @@ func (ls *LessonScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case KeyBack, KeyBackAlt:
-			return ls, backCmd(NavigateToMenu{})
+			if ls.lesson.IsReadOnly() && ls.previousStars == 0 {
+				return ls, backCmd(lessonCompletedMsg{lessonID: ls.lesson.ID, stars: 1})
+			}
+			return ls, backCmd(NavigateBackToCourse{})
 		case "e", KeySelect:
 			if ls.lesson.Exercise != "" || len(ls.lesson.Files) > 0 {
 				return ls, backCmd(NavigateToExerciseMsg{Lesson: ls.lesson})

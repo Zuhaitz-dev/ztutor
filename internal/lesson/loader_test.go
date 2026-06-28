@@ -6,6 +6,195 @@ import (
 	"testing"
 )
 
+// ---------------------------------------------------------------------------
+// IsReadOnly
+// ---------------------------------------------------------------------------
+
+func TestIsReadOnly_ContentOnly(t *testing.T) {
+	l := Lesson{Content: "some content"}
+	if !l.IsReadOnly() {
+		t.Error("lesson with only content should be read-only")
+	}
+}
+
+func TestIsReadOnly_WithExercise(t *testing.T) {
+	l := Lesson{Content: "content", Exercise: "int main(){}"}
+	if l.IsReadOnly() {
+		t.Error("lesson with an exercise should not be read-only")
+	}
+}
+
+func TestIsReadOnly_WithFiles(t *testing.T) {
+	l := Lesson{Content: "content", Files: []ExerciseFile{{Name: "main.c"}}}
+	if l.IsReadOnly() {
+		t.Error("lesson with files should not be read-only")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// MaxStars
+// ---------------------------------------------------------------------------
+
+func TestMaxStars_ReadOnly(t *testing.T) {
+	l := Lesson{Content: "reading lesson"}
+	if l.MaxStars() != 1 {
+		t.Errorf("read-only lesson should have MaxStars=1, got %d", l.MaxStars())
+	}
+}
+
+func TestMaxStars_Exercise(t *testing.T) {
+	l := Lesson{Content: "content", Exercise: "int main(){}"}
+	if l.MaxStars() != 3 {
+		t.Errorf("exercise lesson should have MaxStars=3, got %d", l.MaxStars())
+	}
+}
+
+func TestMaxStars_MultiFile(t *testing.T) {
+	l := Lesson{Content: "content", Files: []ExerciseFile{{Name: "main.c"}}}
+	if l.MaxStars() != 3 {
+		t.Errorf("multi-file lesson should have MaxStars=3, got %d", l.MaxStars())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// args.txt
+// ---------------------------------------------------------------------------
+
+func TestLoadLang_ArgsFile(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "lesson.md"), []byte("# Args Lesson\n\nContent."), 0644)
+	os.WriteFile(filepath.Join(dir, "exercise.c"), []byte("int main(){}"), 0644)
+	os.WriteFile(filepath.Join(dir, "expected.txt"), []byte("ok"), 0644)
+	os.WriteFile(filepath.Join(dir, "args.txt"), []byte("--verbose --count 3"), 0644)
+
+	l, err := LoadLang(dir, "en")
+	if err != nil {
+		t.Fatalf("LoadLang: %v", err)
+	}
+	if len(l.Tests) != 1 {
+		t.Fatalf("tests = %d, want 1", len(l.Tests))
+	}
+	if l.Tests[0].Args != "--verbose --count 3" {
+		t.Errorf("args = %q, want %q", l.Tests[0].Args, "--verbose --count 3")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// answer.md
+// ---------------------------------------------------------------------------
+
+func TestLoadLang_AnswerMd(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "lesson.md"), []byte("# Answer Lesson\n\nContent."), 0644)
+	os.WriteFile(filepath.Join(dir, "answer.md"), []byte("  The answer is 42.  "), 0644)
+
+	l, err := LoadLang(dir, "en")
+	if err != nil {
+		t.Fatalf("LoadLang: %v", err)
+	}
+	if l.Answer != "The answer is 42." {
+		t.Errorf("answer = %q, want %q", l.Answer, "The answer is 42.")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Locale override: lesson.es.md beats lesson.md
+// ---------------------------------------------------------------------------
+
+func TestLoadLang_LocaleOverride(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "lesson.md"), []byte("# English Title\n\nEnglish body."), 0644)
+	os.WriteFile(filepath.Join(dir, "lesson.es.md"), []byte("# Título Español\n\nCuerpo en español."), 0644)
+
+	l, err := LoadLang(dir, "es")
+	if err != nil {
+		t.Fatalf("LoadLang es: %v", err)
+	}
+	if l.Title != "Título Español" {
+		t.Errorf("title = %q, want Spanish title", l.Title)
+	}
+
+	// Loading with "en" must still return the base file.
+	l2, err := LoadLang(dir, "en")
+	if err != nil {
+		t.Fatalf("LoadLang en: %v", err)
+	}
+	if l2.Title != "English Title" {
+		t.Errorf("title = %q, want English title", l2.Title)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// files/ subdirectory
+// ---------------------------------------------------------------------------
+
+func TestLoadLang_FilesDir(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "lesson.md"), []byte("# Multi-file Lesson\n\nContent."), 0644)
+
+	filesDir := filepath.Join(dir, "files")
+	os.MkdirAll(filesDir, 0755)
+	os.WriteFile(filepath.Join(filesDir, "main.c"), []byte("int main(){}"), 0644)
+	os.WriteFile(filepath.Join(filesDir, "helper.h"), []byte("void helper();"), 0644)
+
+	l, err := LoadLang(dir, "en")
+	if err != nil {
+		t.Fatalf("LoadLang: %v", err)
+	}
+	if len(l.Files) != 2 {
+		t.Fatalf("files = %d, want 2", len(l.Files))
+	}
+	// Files are sorted by name.
+	if l.Files[0].Name != "helper.h" {
+		t.Errorf("files[0].Name = %q, want helper.h", l.Files[0].Name)
+	}
+	if l.Files[1].Name != "main.c" {
+		t.Errorf("files[1].Name = %q, want main.c", l.Files[1].Name)
+	}
+	if l.Files[1].Language != "c" {
+		t.Errorf("files[1].Language = %q, want c", l.Files[1].Language)
+	}
+	if l.IsReadOnly() {
+		t.Error("lesson with files/ but no exercise.c should not be read-only — Files is non-empty")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// langFromExtension
+// ---------------------------------------------------------------------------
+
+func TestLangFromExtension(t *testing.T) {
+	cases := []struct {
+		filename string
+		want     string
+	}{
+		{"main.c", "c"},
+		{"lib.cpp", "cpp"},
+		{"lib.cc", "cpp"},
+		{"header.h", "c"},
+		{"script.py", "python"},
+		{"main.go", "go"},
+		{"lib.rs", "rust"},
+		{"boot.s", "asm"},
+		{"boot.asm", "asm"},
+		{"run.sh", "bash"},
+		{"main.rb", "ruby"},
+		{"index.js", "javascript"},
+		{"index.ts", "typescript"},
+		{"Makefile", "makefile"},
+		{"GNUmakefile", "makefile"},
+		{"unknown.xyz", ""},
+		{"noextension", ""},
+	}
+
+	for _, tc := range cases {
+		got := langFromExtension(tc.filename)
+		if got != tc.want {
+			t.Errorf("langFromExtension(%q) = %q, want %q", tc.filename, got, tc.want)
+		}
+	}
+}
+
 func TestParseFrontmatter_Full(t *testing.T) {
 	raw := `---
 difficulty: intermediate

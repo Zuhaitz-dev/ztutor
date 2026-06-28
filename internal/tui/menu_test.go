@@ -287,3 +287,90 @@ func TestFilterCourses_LicenseGatedWithoutMultiUser(t *testing.T) {
 		t.Fatalf("expected 2 courses (c1 via enrollment, c2 free), got %d", len(result))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Star system — read-only vs exercise
+// ---------------------------------------------------------------------------
+
+func makeMenuWithProgress(sections []lesson.Section, progress map[string]int) *MenuScreen {
+	c := lesson.Course{ID: "c", Sections: sections}
+	m := NewMenuScreen(
+		[]lesson.Course{c},
+		nil,
+		func(string) bool { return true },
+		progress,
+		nil, "", 0, false,
+		func(string) bool { return false },
+		i18n.New("en"),
+		120, 40,
+	)
+	return m
+}
+
+func TestSuggestedLesson_ExcludesCompletedReadOnly(t *testing.T) {
+	// A read-only lesson with 1 star is fully done (MaxStars=1). It must NOT appear
+	// in the suggested-review queue.
+	sections := []lesson.Section{{
+		ID:      "s1",
+		Type:    "lessons",
+		Lessons: []lesson.Lesson{{ID: "intro", Content: "read me"}}, // no exercise = read-only
+	}}
+	m := makeMenuWithProgress(sections, map[string]int{"intro": 1})
+	if got := m.suggestedLesson(); got != nil {
+		t.Errorf("read-only lesson with 1 star (its max) should not be suggested for review, got %q", got.ID)
+	}
+}
+
+func TestSuggestedLesson_IncludesPartialExercise(t *testing.T) {
+	// An exercise lesson with 1 out of 3 stars should be suggested.
+	sections := []lesson.Section{{
+		ID:   "s1",
+		Type: "lessons",
+		Lessons: []lesson.Lesson{
+			{ID: "ex1", Content: "learn", Exercise: "int main(){}"},
+		},
+	}}
+	m := makeMenuWithProgress(sections, map[string]int{"ex1": 1})
+	got := m.suggestedLesson()
+	if got == nil || got.ID != "ex1" {
+		t.Errorf("exercise with 1/3 stars should be suggested, got %v", got)
+	}
+}
+
+func TestSuggestedLesson_ExcludesPerfectExercise(t *testing.T) {
+	sections := []lesson.Section{{
+		ID:   "s1",
+		Type: "lessons",
+		Lessons: []lesson.Lesson{
+			{ID: "ex1", Content: "learn", Exercise: "int main(){}"},
+		},
+	}}
+	m := makeMenuWithProgress(sections, map[string]int{"ex1": 3})
+	if got := m.suggestedLesson(); got != nil {
+		t.Errorf("exercise with 3/3 stars should not be suggested, got %q", got.ID)
+	}
+}
+
+func TestStarsStyle_ReadOnlyComplete(t *testing.T) {
+	s := starsStyle(1, 1)
+	w := lipgloss.Width(s)
+	if w != 3 {
+		t.Errorf("starsStyle(1,1) should be 3 chars wide for alignment, got %d", w)
+	}
+	// Should contain a star (completed state)
+	if !strings.Contains(stripANSI(s), "★") {
+		t.Errorf("starsStyle(1,1) should contain ★, got %q", stripANSI(s))
+	}
+	// Should NOT look like a partial 3-star scale
+	if strings.Contains(stripANSI(s), "☆") {
+		t.Errorf("starsStyle(1,1) should not contain empty star ☆, got %q", stripANSI(s))
+	}
+}
+
+func TestStarsStyle_ExercisePartial(t *testing.T) {
+	s := starsStyle(1, 3)
+	if !strings.Contains(stripANSI(s), "☆") {
+		t.Errorf("starsStyle(1,3) should show empty stars, got %q", stripANSI(s))
+	}
+}
+
