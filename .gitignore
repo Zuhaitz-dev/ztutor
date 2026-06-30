@@ -41,3 +41,8 @@ coverage.html
 .vscode/
 *.swp
 .DS_Store
+
+# Demo videos (hosted externally, not committed to git)
+*.mp4
+*.mov
+*.webm

@@ -61,7 +61,7 @@ func keyMsgFromString(key string) tea.KeyMsg {
 	case KeyHelp:
 		return tea.KeyMsg{Type: tea.KeyF1}
 	case KeyHintEx:
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(KeyHintEx)}
 	default:
 		r := []rune(key)
 		if len(r) == 1 {

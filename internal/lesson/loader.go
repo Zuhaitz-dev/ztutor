@@ -17,9 +17,13 @@ import (
 // Test 1 comes from expected.txt / stdin.txt / args.txt.
 // Test N (N ≥ 2) comes from expected.N.txt / stdin.N.txt / args.N.txt.
 type TestCase struct {
-	Stdin    string
-	Args     string // space-separated runtime arguments, not yet parsed
-	Expected string
+	Stdin             string
+	Args              string // space-separated runtime arguments, not yet parsed
+	Expected          string
+	ExpectedStdout    string
+	ExpectedStderr    string
+	HasExpectedStdout bool
+	HasExpectedStderr bool
 }
 
 // ExerciseFile is one file in a multi-file exercise (from the files/ subdirectory).
@@ -126,10 +130,14 @@ func LoadAllLang(lessonsDir, lang string) ([]Lesson, error) {
 
 // partialTC accumulates fields for one numbered test case during loading.
 type partialTC struct {
-	Stdin  string
-	Args   string
-	Expect string
-	hasExp bool
+	Stdin     string
+	Args      string
+	Expect    string
+	ExpectOut string
+	ExpectErr string
+	hasExp    bool
+	hasOut    bool
+	hasErr    bool
 }
 
 // LoadLang loads a lesson from dir, preferring locale-specific files
@@ -237,6 +245,18 @@ func LoadLang(dir, lang string) (*Lesson, error) {
 			tc.Expect = string(data)
 			tc.hasExp = true
 
+		case name == "expected.stdout.txt":
+			data, _ := os.ReadFile(path)
+			tc := getOrCreate(testMap, 1)
+			tc.ExpectOut = string(data)
+			tc.hasOut = true
+
+		case name == "expected.stderr.txt":
+			data, _ := os.ReadFile(path)
+			tc := getOrCreate(testMap, 1)
+			tc.ExpectErr = string(data)
+			tc.hasErr = true
+
 		case name == "stdin.txt":
 			data, _ := os.ReadFile(path)
 			getOrCreate(testMap, 1).Stdin = string(data)
@@ -260,6 +280,12 @@ func LoadLang(dir, lang string) (*Lesson, error) {
 			case "expected":
 				tc.Expect = string(data)
 				tc.hasExp = true
+			case "expected.stdout":
+				tc.ExpectOut = string(data)
+				tc.hasOut = true
+			case "expected.stderr":
+				tc.ExpectErr = string(data)
+				tc.hasErr = true
 			case "stdin":
 				tc.Stdin = string(data)
 			case "args":
@@ -296,7 +322,7 @@ func LoadLang(dir, lang string) (*Lesson, error) {
 	// Build Tests slice in order. Only include entries that have expected output.
 	var nums []int
 	for n, tc := range testMap {
-		if tc.hasExp {
+		if tc.hasExp || tc.hasOut || tc.hasErr {
 			nums = append(nums, n)
 		}
 	}
@@ -304,9 +330,13 @@ func LoadLang(dir, lang string) (*Lesson, error) {
 	for _, n := range nums {
 		tc := testMap[n]
 		lesson.Tests = append(lesson.Tests, TestCase{
-			Stdin:    tc.Stdin,
-			Args:     tc.Args,
-			Expected: tc.Expect,
+			Stdin:             tc.Stdin,
+			Args:              tc.Args,
+			Expected:          tc.Expect,
+			ExpectedStdout:    tc.ExpectOut,
+			ExpectedStderr:    tc.ExpectErr,
+			HasExpectedStdout: tc.hasOut,
+			HasExpectedStderr: tc.hasErr,
 		})
 	}
 
@@ -407,10 +437,11 @@ func getOrCreate(m map[int]*partialTC, n int) *partialTC {
 	return m[n]
 }
 
-// parseTestFilename matches "expected.2.txt", "stdin.3.txt", "args.2.txt" etc.
+// parseTestFilename matches "expected.2.txt", "expected.stdout.2.txt",
+// "expected.stderr.2.txt", "stdin.3.txt", "args.2.txt" etc.
 // Returns (testNum ≥ 2, fieldName, true) or (0, "", false).
 func parseTestFilename(name string) (num int, field string, ok bool) {
-	for _, f := range []string{"expected", "stdin", "args"} {
+	for _, f := range []string{"expected", "expected.stdout", "expected.stderr", "stdin", "args"} {
 		prefix := f + "."
 		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".txt") {
 			if len(name) <= len(prefix)+4 {

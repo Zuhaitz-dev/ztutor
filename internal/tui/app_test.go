@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"encoding/hex"
 	"strings"
 	"testing"
+	"time"
 
 	"ztutor/internal/db"
 	"ztutor/internal/lesson"
@@ -85,6 +87,62 @@ func TestAppNavigateToLicenseSummary_ShowsSummary(t *testing.T) {
 	app.Update(NavigateToLicenseSummary{})
 	if _, ok := app.current.(*licenseSummaryScreen); !ok {
 		t.Fatalf("current = %T, want *licenseSummaryScreen", app.current)
+	}
+}
+
+func TestAppRedeemsPersonalLicenseAndReloadsIt(t *testing.T) {
+	database := testDB(t)
+	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	pub, priv, err := license.GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair: %v", err)
+	}
+	license.SetPublicKey(pub)
+
+	courseKey := make([]byte, 32)
+	for i := range courseKey {
+		courseKey[i] = byte(i + 1)
+	}
+	info := license.Info{
+		Licensee:        "Campaign",
+		LicenseID:       "lic-789",
+		Username:        "alice",
+		UnlockedCourses: []string{"c-module-02"},
+		CourseKey:       hex.EncodeToString(courseKey),
+		IssuedAt:        time.Now().Format(time.RFC3339),
+	}
+	signed, err := license.Sign(priv, info)
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	msg := app.submitLicenseEntry(string(signed))()
+	app.Update(msg)
+
+	enrolled, err := database.ListEnrollments("alice")
+	if err != nil {
+		t.Fatalf("ListEnrollments: %v", err)
+	}
+	if len(enrolled) != 1 || enrolled[0] != "c-module-02" {
+		t.Fatalf("enrollments = %v, want [c-module-02]", enrolled)
+	}
+	if app.lic == nil || !app.lic.CanAccessCourse("c-module-02") {
+		t.Fatalf("app license did not unlock c-module-02: %+v", app.lic)
+	}
+	if got := hex.EncodeToString(app.lic.CourseKey); got != info.CourseKey {
+		t.Fatalf("course key = %q, want %q", got, info.CourseKey)
+	}
+
+	app2 := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	if app2.lic == nil || !app2.lic.CanAccessCourse("c-module-02") {
+		t.Fatalf("reloaded app license did not preserve entitlement: %+v", app2.lic)
+	}
+	if got := hex.EncodeToString(app2.lic.CourseKey); got != info.CourseKey {
+		t.Fatalf("reloaded course key = %q, want %q", got, info.CourseKey)
 	}
 }
 

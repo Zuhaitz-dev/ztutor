@@ -170,6 +170,7 @@ func NewApp(username, coursesDir, lessonsDir string, database *db.DB, lic *licen
 		app.isAdmin = true
 	}
 
+	app.loadRedeemedLicenses()
 	app.loadCourses()
 	app.loadProgress()
 	app.streak = database.UpdateStreak(username)
@@ -388,22 +389,24 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case NavigateToLicenseEntry:
-		a.current = NewLicenseEntryScreen(a.loc, a.Width, a.Height)
+		a.current = NewLicenseEntryScreen(a.loc, a.Width, a.Height, a.submitLicenseEntry)
 		return a, a.current.Init()
 
 	case NavigateToLicenseSummary:
 		if a.lic != nil && a.lic.Licensed {
 			a.current = NewLicenseSummaryScreen(a.loc, a.lic, a.Width, a.Height)
 		} else {
-			a.current = NewLicenseEntryScreen(a.loc, a.Width, a.Height)
+			a.current = NewLicenseEntryScreen(a.loc, a.Width, a.Height, a.submitLicenseEntry)
 		}
 		return a, a.current.Init()
 
 	case licenseEntryDoneMsg:
-		if msg.licState != nil {
-			a.lic = msg.licState
+		if msg.err == nil && msg.licState != nil {
+			a.lic = mergeLicenseStates(a.lic, msg.licState)
 			a.loadCourses()
 			a.current = NewLicenseSummaryScreen(a.loc, a.lic, a.Width, a.Height)
+		} else if s, ok := a.current.(*licenseEntryScreen); ok {
+			s.form.SetMessage(fmt.Sprintf(s.loc.T("license_entry.invalid"), msg.err), true)
 		}
 		return a, nil
 
@@ -554,6 +557,96 @@ func (a *App) courseIntroChecker() func(string) bool {
 		val, _ := a.db.GetUserSetting(a.username, key)
 		return val != "1"
 	}
+}
+
+func (a *App) submitLicenseEntry(val string) tea.Cmd {
+	return func() tea.Msg {
+		data, err := readLicenseValue(val)
+		if err != nil {
+			return licenseEntryDoneMsg{err: err}
+		}
+		state, info, err := license.CheckData(data)
+		if err != nil {
+			return licenseEntryDoneMsg{err: err}
+		}
+		if info.IsPersonal() {
+			if err := a.db.RedeemPersonalLicense(a.username, info, data); err != nil {
+				return licenseEntryDoneMsg{err: err}
+			}
+		}
+		return licenseEntryDoneMsg{licState: state}
+	}
+}
+
+func (a *App) loadRedeemedLicenses() {
+	blobs, err := a.db.ListRedeemedLicenseBlobs(a.username)
+	if err != nil {
+		logutil.Warn("load redeemed licenses for %s: %v", a.username, err)
+		return
+	}
+	for _, blob := range blobs {
+		state, _, err := license.CheckData(blob)
+		if err != nil {
+			logutil.Warn("skip invalid redeemed license for %s: %v", a.username, err)
+			continue
+		}
+		a.lic = mergeLicenseStates(a.lic, state)
+	}
+}
+
+func mergeLicenseStates(base, extra *license.State) *license.State {
+	if base == nil {
+		if extra == nil {
+			return nil
+		}
+		copy := *extra
+		copy.UnlockedCourses = append([]string(nil), extra.UnlockedCourses...)
+		if extra.CourseKey != nil {
+			copy.CourseKey = append([]byte(nil), extra.CourseKey...)
+		}
+		return &copy
+	}
+	if extra == nil {
+		return base
+	}
+
+	merged := *base
+	merged.Licensed = base.Licensed || extra.Licensed
+	if merged.Licensee == "" {
+		merged.Licensee = extra.Licensee
+	}
+	if merged.LicenseID == "" {
+		merged.LicenseID = extra.LicenseID
+	}
+	if merged.Username == "" {
+		merged.Username = extra.Username
+	}
+	if merged.Email == "" {
+		merged.Email = extra.Email
+	}
+	if merged.MaxStudents == 0 {
+		merged.MaxStudents = extra.MaxStudents
+	}
+	if merged.ExpiresAt.IsZero() || (!extra.ExpiresAt.IsZero() && extra.ExpiresAt.After(merged.ExpiresAt)) {
+		merged.ExpiresAt = extra.ExpiresAt
+	}
+	merged.HasMultiUser = base.HasMultiUser || extra.HasMultiUser
+	merged.HasAdminUI = base.HasAdminUI || extra.HasAdminUI
+	merged.HasInterviewQuestions = base.HasInterviewQuestions || extra.HasInterviewQuestions
+	if len(merged.CourseKey) == 0 && len(extra.CourseKey) > 0 {
+		merged.CourseKey = append([]byte(nil), extra.CourseKey...)
+	}
+
+	seen := make(map[string]bool, len(base.UnlockedCourses)+len(extra.UnlockedCourses))
+	merged.UnlockedCourses = make([]string, 0, len(base.UnlockedCourses)+len(extra.UnlockedCourses))
+	for _, id := range append(append([]string(nil), base.UnlockedCourses...), extra.UnlockedCourses...) {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		merged.UnlockedCourses = append(merged.UnlockedCourses, id)
+	}
+	return &merged
 }
 
 func (a *App) buildMenuScreen(notifications []string) *MenuScreen {

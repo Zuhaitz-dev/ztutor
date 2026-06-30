@@ -178,7 +178,7 @@ func toResult(r *sandbox.Result) *Result {
 	if r == nil {
 		return nil
 	}
-	return &Result{Output: r.Output, ExitCode: r.ExitCode, Error: r.Error}
+	return &Result{Output: r.Output, Stdout: r.Stdout, Stderr: r.Stderr, ExitCode: r.ExitCode, Error: r.Error}
 }
 
 func toDiags(ds []sandbox.Diagnostic) []Diagnostic {
@@ -200,7 +200,15 @@ func toTestResults(rs []sandbox.TestResult) []TestResult {
 func fromTestInputs(ts []TestInput) []sandbox.TestInput {
 	out := make([]sandbox.TestInput, len(ts))
 	for i, t := range ts {
-		out[i] = sandbox.TestInput{Stdin: t.Stdin, Args: t.Args, Expected: t.Expected}
+		out[i] = sandbox.TestInput{
+			Stdin:             t.Stdin,
+			Args:              t.Args,
+			Expected:          t.Expected,
+			ExpectedStdout:    t.ExpectedStdout,
+			ExpectedStderr:    t.ExpectedStderr,
+			HasExpectedStdout: t.HasExpectedStdout,
+			HasExpectedStderr: t.HasExpectedStderr,
+		}
 	}
 	return out
 }

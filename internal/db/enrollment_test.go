@@ -3,6 +3,10 @@ package db
 import (
 	"path/filepath"
 	"testing"
+
+	"time"
+
+	"ztutor/internal/license"
 )
 
 func TestEnrollAndListEnrolledUsers(t *testing.T) {
@@ -195,5 +199,80 @@ func TestCountEnrollments(t *testing.T) {
 	count, _ = db.CountEnrollments("c-programming")
 	if count != 3 {
 		t.Errorf("count after third enroll = %d, want 3", count)
+	}
+}
+
+func TestRedeemPersonalLicense(t *testing.T) {
+	dir := t.TempDir()
+	db, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.CreateUser("alice", "p", RoleStudent); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	info := license.Info{
+		Licensee:        "Campaign",
+		LicenseID:       "lic-123",
+		Username:        "alice",
+		UnlockedCourses: []string{"c-module-02", "c-module-03"},
+		IssuedAt:        time.Now().Format(time.RFC3339),
+	}
+
+	if err := db.RedeemPersonalLicense("alice", info, []byte("signed-license")); err != nil {
+		t.Fatalf("RedeemPersonalLicense: %v", err)
+	}
+	if err := db.RedeemPersonalLicense("alice", info, []byte("signed-license")); err != nil {
+		t.Fatalf("RedeemPersonalLicense idempotent: %v", err)
+	}
+
+	got, err := db.ListEnrollments("alice")
+	if err != nil {
+		t.Fatalf("ListEnrollments: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("enrollments = %v, want 2", got)
+	}
+
+	blobs, err := db.ListRedeemedLicenseBlobs("alice")
+	if err != nil {
+		t.Fatalf("ListRedeemedLicenseBlobs: %v", err)
+	}
+	if len(blobs) != 1 || string(blobs[0]) != "signed-license" {
+		t.Fatalf("blobs = %q, want signed-license", blobs)
+	}
+}
+
+func TestRedeemPersonalLicense_RejectsOtherUser(t *testing.T) {
+	dir := t.TempDir()
+	db, err := Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.CreateUser("alice", "p", RoleStudent); err != nil {
+		t.Fatalf("CreateUser alice: %v", err)
+	}
+	if err := db.CreateUser("bob", "p", RoleStudent); err != nil {
+		t.Fatalf("CreateUser bob: %v", err)
+	}
+
+	info := license.Info{
+		Licensee:        "Campaign",
+		LicenseID:       "lic-456",
+		Username:        "alice",
+		UnlockedCourses: []string{"c-module-02"},
+		IssuedAt:        time.Now().Format(time.RFC3339),
+	}
+
+	if err := db.RedeemPersonalLicense("alice", info, []byte("signed-license")); err != nil {
+		t.Fatalf("RedeemPersonalLicense alice: %v", err)
+	}
+	if err := db.RedeemPersonalLicense("bob", info, []byte("signed-license")); err == nil {
+		t.Fatal("expected redemption for bob to fail")
 	}
 }

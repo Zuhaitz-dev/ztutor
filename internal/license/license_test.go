@@ -270,3 +270,38 @@ func TestInterviewsBackwardCompat(t *testing.T) {
 		t.Error("c-interviews should NOT be auto-added to unlocked courses (interviews are now sections within courses)")
 	}
 }
+
+func TestCheckDataPersonalLicense(t *testing.T) {
+	pub, priv, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair: %v", err)
+	}
+	SetPublicKey(pub)
+
+	info := Info{
+		Licensee:        "Campaign",
+		LicenseID:       "lic-abc",
+		Username:        "alice",
+		UnlockedCourses: []string{"c-module-02"},
+		IssuedAt:        time.Now().Format(time.RFC3339),
+	}
+
+	signed, err := Sign(priv, info)
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	state, parsed, err := CheckData(signed)
+	if err != nil {
+		t.Fatalf("CheckData: %v", err)
+	}
+	if !parsed.IsPersonal() {
+		t.Fatal("expected parsed license to be personal")
+	}
+	if state.Username != "alice" {
+		t.Fatalf("state.Username = %q, want alice", state.Username)
+	}
+	if state.LicenseID != "lic-abc" {
+		t.Fatalf("state.LicenseID = %q, want lic-abc", state.LicenseID)
+	}
+}

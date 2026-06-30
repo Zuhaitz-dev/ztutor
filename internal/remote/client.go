@@ -139,7 +139,15 @@ func (c *Client) SyntaxCheck(lang sandbox.Language, files map[string]string, bui
 func (c *Client) RunAllTests(lang sandbox.Language, files map[string]string, buildCmd string, extraFlags []string, tests []sandbox.TestInput) (*sandbox.Result, []sandbox.TestResult, error) {
 	wired := make([]TestInput, len(tests))
 	for i, t := range tests {
-		wired[i] = TestInput{Stdin: t.Stdin, Args: t.Args, Expected: t.Expected}
+		wired[i] = TestInput{
+			Stdin:             t.Stdin,
+			Args:              t.Args,
+			Expected:          t.Expected,
+			ExpectedStdout:    t.ExpectedStdout,
+			ExpectedStderr:    t.ExpectedStderr,
+			HasExpectedStdout: t.HasExpectedStdout,
+			HasExpectedStderr: t.HasExpectedStderr,
+		}
 	}
 	resp, err := c.call(ExecRequest{
 		Op: OpTests, Lang: lang.Name(),
@@ -161,7 +169,7 @@ func fromResult(r *Result) *sandbox.Result {
 	if r == nil {
 		return &sandbox.Result{}
 	}
-	return &sandbox.Result{Output: r.Output, ExitCode: r.ExitCode, Error: r.Error}
+	return &sandbox.Result{Output: r.Output, Stdout: r.Stdout, Stderr: r.Stderr, ExitCode: r.ExitCode, Error: r.Error}
 }
 
 func fromDiags(ds []Diagnostic) []sandbox.Diagnostic {

@@ -38,29 +38,33 @@ func formatExecuteResult(stdout, stderr, dir string, ctxErr error, execErr error
 		output += stderr
 	}
 	output = stripDir(output, dir)
+	stdout = stripDir(stdout, dir)
+	stderr = stripDir(stderr, dir)
 
 	if ctxErr != nil {
-		return &Result{Output: output, Error: fmt.Sprintf("program timed out (%s)", maxRuntime)}
+		return &Result{Output: output, Stdout: stdout, Stderr: stderr, Error: fmt.Sprintf("program timed out (%s)", maxRuntime)}
 	}
 
 	if execErr != nil {
 		if exitErr, ok := execErr.(*exec.ExitError); ok {
 			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
 				sig := status.Signal()
-				return &Result{Output: output, ExitCode: 128 + int(sig), Error: fmt.Sprintf("program crashed: %s", sig)}
+				return &Result{Output: output, Stdout: stdout, Stderr: stderr, ExitCode: 128 + int(sig), Error: fmt.Sprintf("program crashed: %s", sig)}
 			}
-			return &Result{Output: output, ExitCode: exitErr.ExitCode()}
+			return &Result{Output: output, Stdout: stdout, Stderr: stderr, ExitCode: exitErr.ExitCode()}
 		}
-		return &Result{Output: output, Error: execErr.Error()}
+		return &Result{Output: output, Stdout: stdout, Stderr: stderr, Error: execErr.Error()}
 	}
 
-	return &Result{Output: output, ExitCode: 0}
+	return &Result{Output: output, Stdout: stdout, Stderr: stderr, ExitCode: 0}
 }
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
 type Result struct {
 	Output   string
+	Stdout   string
+	Stderr   string
 	ExitCode int
 	Error    string
 }
@@ -78,9 +82,13 @@ func (d *DebugBuild) Close() {
 }
 
 type TestInput struct {
-	Stdin    string
-	Args     []string
-	Expected string
+	Stdin             string
+	Args              []string
+	Expected          string
+	ExpectedStdout    string
+	ExpectedStderr    string
+	HasExpectedStdout bool
+	HasExpectedStderr bool
 }
 
 type TestResult struct {
@@ -90,6 +98,48 @@ type TestResult struct {
 	Want     string
 	Error    string
 	ExitCode int
+}
+
+func formatExpectedStreams(stdout string, hasStdout bool, stderr string, hasStderr bool) string {
+	var parts []string
+	if hasStdout {
+		parts = append(parts, "[stdout]\n"+stdout)
+	}
+	if hasStderr {
+		parts = append(parts, "[stderr]\n"+stderr)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func CompareResult(num int, r *Result, tc TestInput) TestResult {
+	if r == nil {
+		return TestResult{Num: num, Error: "missing execution result"}
+	}
+
+	got := r.Output
+	want := tc.Expected
+	passed := strings.TrimSpace(r.Output) == strings.TrimSpace(tc.Expected)
+
+	if tc.HasExpectedStdout || tc.HasExpectedStderr {
+		got = formatExpectedStreams(r.Stdout, tc.HasExpectedStdout, r.Stderr, tc.HasExpectedStderr)
+		want = formatExpectedStreams(tc.ExpectedStdout, tc.HasExpectedStdout, tc.ExpectedStderr, tc.HasExpectedStderr)
+		passed = true
+		if tc.HasExpectedStdout && strings.TrimSpace(r.Stdout) != strings.TrimSpace(tc.ExpectedStdout) {
+			passed = false
+		}
+		if tc.HasExpectedStderr && strings.TrimSpace(r.Stderr) != strings.TrimSpace(tc.ExpectedStderr) {
+			passed = false
+		}
+	}
+
+	return TestResult{
+		Num:      num,
+		Passed:   r.Error == "" && r.ExitCode == 0 && passed,
+		Got:      got,
+		Want:     want,
+		Error:    r.Error,
+		ExitCode: r.ExitCode,
+	}
 }
 
 // ── Multi-file helpers ────────────────────────────────────────────────────────
@@ -351,16 +401,7 @@ func RunAllTests(lang Language, files map[string]string, buildCmd string, extraF
 			results[i] = TestResult{Num: i + 1, Error: execErr.Error()}
 			continue
 		}
-		got := strings.TrimSpace(r.Output)
-		want := strings.TrimSpace(tc.Expected)
-		results[i] = TestResult{
-			Num:      i + 1,
-			Passed:   r.Error == "" && r.ExitCode == 0 && got == want,
-			Got:      r.Output,
-			Want:     tc.Expected,
-			Error:    r.Error,
-			ExitCode: r.ExitCode,
-		}
+		results[i] = CompareResult(i+1, r, tc)
 	}
 	return compileRes, results, nil
 }

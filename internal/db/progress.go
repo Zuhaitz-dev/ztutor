@@ -14,6 +14,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 
+	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 )
 
@@ -104,6 +105,14 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_progress_username  ON progress (username)`,
 	`CREATE INDEX IF NOT EXISTS idx_progress_completed ON progress (completed, username)`,
 	`CREATE INDEX IF NOT EXISTS idx_enrollments_user   ON enrollments (username)`,
+
+	// v6: redeemed personal licenses
+	`CREATE TABLE IF NOT EXISTS license_redemptions (
+		license_id   TEXT NOT NULL PRIMARY KEY,
+		username     TEXT NOT NULL,
+		license_blob TEXT NOT NULL,
+		redeemed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`,
 }
 
 // bootstrapVersion is the highest migration already applied by old deployments.
@@ -638,4 +647,81 @@ func (db *DB) ListEnrollments(username string) ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+// RedeemPersonalLicense records a one-account personal license redemption and
+// grants the unlocked courses to that user. Re-redeeming the same license for
+// the same username is allowed and keeps course grants idempotent.
+func (db *DB) RedeemPersonalLicense(username string, info license.Info, licenseBlob []byte) error {
+	if username == "" {
+		return fmt.Errorf("username required")
+	}
+	if !info.IsPersonal() {
+		return fmt.Errorf("license is not personal")
+	}
+	if info.LicenseID == "" {
+		return fmt.Errorf("personal license missing license_id")
+	}
+	if info.Username != "" && info.Username != username {
+		return fmt.Errorf("license belongs to %s", info.Username)
+	}
+	if len(licenseBlob) == 0 {
+		return fmt.Errorf("license blob required")
+	}
+
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var redeemedBy string
+	err = tx.QueryRow(`SELECT username FROM license_redemptions WHERE license_id = ?`, info.LicenseID).Scan(&redeemedBy)
+	switch {
+	case err == nil:
+		if redeemedBy != username {
+			return fmt.Errorf("license already redeemed by another user")
+		}
+	case errors.Is(err, sql.ErrNoRows):
+		if _, err := tx.Exec(
+			`INSERT INTO license_redemptions (license_id, username, license_blob) VALUES (?, ?, ?)`,
+			info.LicenseID, username, string(licenseBlob),
+		); err != nil {
+			return err
+		}
+	case err != nil:
+		return err
+	}
+
+	for _, courseID := range info.UnlockedCourses {
+		if _, err := tx.Exec(
+			`INSERT OR IGNORE INTO enrollments (username, course_id) VALUES (?, ?)`,
+			username, courseID,
+		); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (db *DB) ListRedeemedLicenseBlobs(username string) ([][]byte, error) {
+	rows, err := db.conn.Query(
+		`SELECT license_blob FROM license_redemptions WHERE username = ? ORDER BY redeemed_at`,
+		username,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var blobs [][]byte
+	for rows.Next() {
+		var blob string
+		if err := rows.Scan(&blob); err != nil {
+			return nil, err
+		}
+		blobs = append(blobs, []byte(blob))
+	}
+	return blobs, nil
 }

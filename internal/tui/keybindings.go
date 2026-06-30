@@ -47,8 +47,8 @@ const (
 	KeyInputs       = "ctrl+f"    // cycle input panels (flags → args → stdin → editor)
 	KeyStdin        = "ctrl+n"    // focus stdin panel directly
 	KeyOutput       = "ctrl+o"    // toggle output-panel focus
-	KeyHintEx       = "?"         // show next hint (exercise screen)
-	KeyTrivia       = "."         // cycle trivia facts
+	KeyHintEx       = "F7"        // show next hint (exercise screen)
+	KeyTrivia       = "F9"        // cycle trivia facts
 	KeyRef          = "ctrl+r"    // show references sidebar
 	KeyTimer        = "ctrl+t"    // toggle timer display
 	KeyHelp         = "f1"        // toggle keybindings overlay

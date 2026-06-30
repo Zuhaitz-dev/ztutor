@@ -19,6 +19,9 @@ var (
 
 type Info struct {
 	Licensee        string   `json:"sub"`
+	LicenseID       string   `json:"license_id,omitempty"`
+	Username        string   `json:"username,omitempty"`
+	Email           string   `json:"email,omitempty"`
 	MaxStudents     int      `json:"max_students"`
 	Features        []string `json:"features"`
 	UnlockedCourses []string `json:"unlocked_courses,omitempty"`
@@ -30,6 +33,9 @@ type Info struct {
 type State struct {
 	Licensed              bool
 	Licensee              string
+	LicenseID             string
+	Username              string
+	Email                 string
 	MaxStudents           int
 	ExpiresAt             time.Time
 	UnlockedCourses       []string
@@ -77,17 +83,22 @@ func Check(licenseFile string) (*State, error) {
 		return nil, ErrNotLicensed
 	}
 
+	state, _, err := CheckData(data)
+	return state, err
+}
+
+func CheckData(data []byte) (*State, Info, error) {
 	sig, info, err := parseLicenseFile(data)
 	if err != nil {
-		return nil, fmt.Errorf("invalid license: %w", err)
+		return nil, Info{}, fmt.Errorf("invalid license: %w", err)
 	}
 
 	if !verify(sig, info) {
-		return nil, fmt.Errorf("license signature verification failed")
+		return nil, Info{}, fmt.Errorf("license signature verification failed")
 	}
 
 	if info.IsExpired() {
-		return nil, ErrExpired
+		return nil, Info{}, ErrExpired
 	}
 
 	interviewUnlocked := info.HasFeature("interviews")
@@ -95,6 +106,9 @@ func Check(licenseFile string) (*State, error) {
 	state := &State{
 		Licensed:              true,
 		Licensee:              info.Licensee,
+		LicenseID:             info.LicenseID,
+		Username:              info.Username,
+		Email:                 info.Email,
 		MaxStudents:           info.MaxStudents,
 		UnlockedCourses:       info.UnlockedCourses,
 		HasMultiUser:          info.HasFeature("multi_user"),
@@ -114,7 +128,11 @@ func Check(licenseFile string) (*State, error) {
 		}
 	}
 
-	return state, nil
+	return state, info, nil
+}
+
+func (i Info) IsPersonal() bool {
+	return i.Username != "" || i.Email != "" || i.LicenseID != ""
 }
 
 func (s *State) CanAccessCourse(courseID string) bool {

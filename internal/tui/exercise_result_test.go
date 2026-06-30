@@ -25,7 +25,7 @@ func TestCompileResult_Pass(t *testing.T) {
 	es.startRun("running")
 
 	es.Update(compileResultMsg{
-		result: &sandbox.Result{Output: "hello", ExitCode: 0},
+		result: &sandbox.Result{Output: "hello", Stdout: "hello", ExitCode: 0},
 	})
 
 	if !es.passed {
@@ -41,7 +41,7 @@ func TestCompileResult_Fail_WrongOutput(t *testing.T) {
 	es.startRun("running")
 
 	es.Update(compileResultMsg{
-		result: &sandbox.Result{Output: "world", ExitCode: 0},
+		result: &sandbox.Result{Output: "world", Stdout: "world", ExitCode: 0},
 	})
 
 	if es.passed {
@@ -54,11 +54,35 @@ func TestCompileResult_Fail_EmptyOutput(t *testing.T) {
 	es.startRun("running")
 
 	es.Update(compileResultMsg{
-		result: &sandbox.Result{Output: "", ExitCode: 0},
+		result: &sandbox.Result{Output: "", Stdout: "", ExitCode: 0},
 	})
 
 	if es.passed {
 		t.Error("should not pass with empty output when expected is non-empty")
+	}
+}
+
+func TestCompileResult_StreamAwarePass(t *testing.T) {
+	l := testLessonWithExpected("x", "", []lesson.TestCase{{
+		ExpectedStdout:    "payload\n",
+		ExpectedStderr:    "debug\n",
+		HasExpectedStdout: true,
+		HasExpectedStderr: true,
+	}})
+	es := newFakeExerciseScreen(t, l)
+	es.startRun("running")
+
+	es.Update(compileResultMsg{
+		result: &sandbox.Result{
+			Output:   "payload\n\ndebug\n",
+			Stdout:   "payload\n",
+			Stderr:   "debug\n",
+			ExitCode: 0,
+		},
+	})
+
+	if !es.passed {
+		t.Error("should pass when stdout and stderr match their separate expectations")
 	}
 }
 

@@ -32,6 +32,12 @@ int main(void) {
 	if result.Error != "" {
 		t.Fatalf("result.Error = %q", result.Error)
 	}
+	if strings.TrimSpace(result.Stdout) != "hello" {
+		t.Errorf("Stdout = %q, want %q", result.Stdout, "hello")
+	}
+	if result.Stderr != "" {
+		t.Errorf("Stderr = %q, want empty", result.Stderr)
+	}
 	if strings.TrimSpace(result.Output) != "hello" {
 		t.Errorf("Output = %q, want %q", result.Output, "hello")
 	}
@@ -134,6 +140,42 @@ int main(int argc, char *argv[]) {
 	}
 	if !results[1].Passed {
 		t.Errorf("test 2 failed: got=%q want=%q err=%s", results[1].Got, results[1].Want, results[1].Error)
+	}
+}
+
+func TestRunAllTests_StreamAwareExpectations(t *testing.T) {
+	if !hasGCC() {
+		t.Skip("gcc not available")
+	}
+
+	code := `#include <stdio.h>
+int main(void) {
+	fprintf(stderr, "debug\n");
+	printf("payload\n");
+	return 0;
+}`
+
+	tests := []TestInput{
+		{
+			ExpectedStdout:    "payload\n",
+			ExpectedStderr:    "debug\n",
+			HasExpectedStdout: true,
+			HasExpectedStderr: true,
+		},
+	}
+
+	compileRes, results, err := RunAllTests(cLang(), map[string]string{"main.c": code}, "", nil, tests)
+	if err != nil {
+		t.Fatalf("RunAllTests: %v", err)
+	}
+	if compileRes.Error != "" {
+		t.Fatalf("compile error: %s", compileRes.Error)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results = %d, want 1", len(results))
+	}
+	if !results[0].Passed {
+		t.Fatalf("stream-aware test failed: got=%q want=%q err=%s", results[0].Got, results[0].Want, results[0].Error)
 	}
 }
 

@@ -139,7 +139,10 @@ type NavigateToConnectChoice struct{}
 type NavigateToLicenseEntry struct{}
 type NavigateToLicenseSummary struct{}
 
-type licenseEntryDoneMsg struct{ licState *license.State }
+type licenseEntryDoneMsg struct {
+	licState *license.State
+	err      error
+}
 
 type NavigateToLessonMsg struct {
 	Lesson lesson.Lesson

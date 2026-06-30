@@ -636,7 +636,7 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err == nil && msg.result != nil && msg.result.Error == "" && msg.result.ExitCode == 0 {
 			es.lastHasWarnings = strings.Contains(msg.result.Output, "warning:")
-			es.checkPassed(msg.result.Output, es.lastHasWarnings)
+			es.checkPassed(msg.result, es.lastHasWarnings)
 		}
 		events := buildAchievementEvents(es.passed, es.attempts, es.earnedStars, es.lastHasWarnings, es.lang, es.editor.Value(), extra...)
 		return es, backCmd(achievementEventMsg{events: events})
@@ -822,7 +822,7 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			es.mascot.Speak(es.loc.T("exercise.mochi.live_error"), MoodWorried)
 			es.output.SetContent(es.liveOutput + exErrorStyle.Render("\n"+es.loc.T("exercise.result.live_exit", msg.code)))
 		} else {
-			es.checkPassed(es.programOutput, es.lastHasWarnings)
+			es.checkPassed(&sandbox.Result{Output: es.programOutput, Stdout: es.programOutput}, es.lastHasWarnings)
 		}
 		return es, nil
 
@@ -1090,26 +1090,32 @@ func diffOutput(got, want string) string {
 	return b.String()
 }
 
-func (es *ExerciseScreen) checkPassed(output string, hasWarnings bool) {
+func (es *ExerciseScreen) checkPassed(result *sandbox.Result, hasWarnings bool) {
 	if len(es.lesson.Tests) == 0 {
 		es.passed = true
 		es.earnedStars = calculateStars(es.attempts, es.hint.HintsUsed(), hasWarnings)
 		es.mascot.Speak(es.successMascotLine(es.earnedStars, es.attempts, hasWarnings), MoodHappy)
-		es.output.SetContent(exSuccessStyle.Render(es.loc.T("exercise.result.compiled")) + "\n" + es.starMessage() + "\n\n" + output)
+		es.output.SetContent(exSuccessStyle.Render(es.loc.T("exercise.result.compiled")) + "\n" + es.starMessage() + "\n\n" + result.Output)
 		return
 	}
-	got := strings.TrimSpace(output)
-	want := strings.TrimSpace(es.lesson.Tests[0].Expected)
-	if got == want {
+	tc := es.lesson.Tests[0]
+	compared := sandbox.CompareResult(1, result, sandbox.TestInput{
+		Expected:          tc.Expected,
+		ExpectedStdout:    tc.ExpectedStdout,
+		ExpectedStderr:    tc.ExpectedStderr,
+		HasExpectedStdout: tc.HasExpectedStdout,
+		HasExpectedStderr: tc.HasExpectedStderr,
+	})
+	if compared.Passed {
 		es.passed = true
 		es.earnedStars = calculateStars(es.attempts, es.hint.HintsUsed(), hasWarnings)
 		es.mascot.Speak(es.successMascotLine(es.earnedStars, es.attempts, hasWarnings), MoodHappy)
-		es.output.SetContent(exSuccessStyle.Render(es.loc.T("exercise.result.correct")) + "\n" + es.starMessage() + "\n\n" + output)
+		es.output.SetContent(exSuccessStyle.Render(es.loc.T("exercise.result.correct")) + "\n" + es.starMessage() + "\n\n" + result.Output)
 	} else {
 		es.passed = false
 		es.earnedStars = 0
-		es.mascot.Speak(es.wrongOutputMascotLine(output, es.lesson.Tests[0].Expected), MoodWorried)
-		diff := diffOutput(output, es.lesson.Tests[0].Expected)
+		es.mascot.Speak(es.wrongOutputMascotLine(compared.Got, compared.Want), MoodWorried)
+		diff := diffOutput(compared.Got, compared.Want)
 		es.output.SetContent(exErrorStyle.Render(es.loc.T("exercise.result.mismatch")) + "\n" + dim(es.loc.T("exercise.result.diff_hint")) + "\n\n" + diff)
 	}
 }

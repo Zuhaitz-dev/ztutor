@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -23,6 +24,8 @@ import (
 	"ztutor/internal/sandbox"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
 )
@@ -327,6 +330,7 @@ func (s *Server) handleSession(channel gossh.Channel, requests <-chan *gossh.Req
 
 	var ptyRequested bool
 	var initialCols, initialRows int
+	var termName string
 
 	for req := range requests {
 		switch req.Type {
@@ -334,6 +338,9 @@ func (s *Server) handleSession(channel gossh.Channel, requests <-chan *gossh.Req
 			ptyRequested = true
 			if len(req.Payload) >= 4 {
 				termLen := int(binary.BigEndian.Uint32(req.Payload[0:4]))
+				if 4+termLen <= len(req.Payload) {
+					termName = string(req.Payload[4 : 4+termLen])
+				}
 				offset := 4 + termLen
 				if offset+8 <= len(req.Payload) {
 					initialCols = int(binary.BigEndian.Uint32(req.Payload[offset:]))
@@ -349,9 +356,9 @@ func (s *Server) handleSession(channel gossh.Channel, requests <-chan *gossh.Req
 			}
 			req.Reply(true, nil)
 			if isAdmin {
-				s.runAdminTUI(channel, requests, username, initialCols, initialRows)
+				s.runAdminTUI(channel, requests, username, initialCols, initialRows, termName)
 			} else {
-				s.runTUI(channel, requests, username, initialCols, initialRows)
+				s.runTUI(channel, requests, username, initialCols, initialRows, termName)
 			}
 			return
 
@@ -445,13 +452,28 @@ func (s *Server) runGDBSession(channel gossh.Channel, requests <-chan *gossh.Req
 	gdb.Wait() //nolint:errcheck
 }
 
-func (s *Server) runAdminTUI(channel gossh.Channel, requests <-chan *gossh.Request, username string, cols, rows int) {
+func colorProfileForTerm(termName string) termenv.Profile {
+	ck := os.Getenv("COLORTERM")
+	if ck == "truecolor" || ck == "24bit" {
+		return termenv.TrueColor
+	}
+	if strings.Contains(termName, "256color") || strings.Contains(termName, "truecolor") {
+		return termenv.ANSI256
+	}
+	if strings.HasPrefix(termName, "xterm") || strings.HasPrefix(termName, "vte") || strings.HasPrefix(termName, "screen") {
+		return termenv.ANSI
+	}
+	return termenv.Ascii
+}
+
+func (s *Server) runAdminTUI(channel gossh.Channel, requests <-chan *gossh.Request, username string, cols, rows int, termName string) {
 	defer func() {
 		if r := recover(); r != nil {
 			logutil.Error("Admin TUI panic for %s: %v", username, r)
 		}
 	}()
 
+	lipgloss.SetColorProfile(colorProfileForTerm(termName))
 	curCols, curRows := cols, rows
 
 	app := s.tui.NewAdminApp(username, s.db, s.config.License, s.config.LessonsDir, s.config.CoursesDir, s.config.AchievementsFile, curCols, curRows)
@@ -502,17 +524,19 @@ func (s *Server) runAdminTUI(channel gossh.Channel, requests <-chan *gossh.Reque
 
 	if sr, ok := app.(SessionResult); ok && sr.WantsRelaunch() {
 		if sr, ok := app.(SessionResult); ok {
-			s.runTUI(channel, requests, sr.RelaunchUser(), curCols, curRows)
+			s.runTUI(channel, requests, sr.RelaunchUser(), curCols, curRows, termName)
 		}
 	}
 }
 
-func (s *Server) runTUI(channel gossh.Channel, requests <-chan *gossh.Request, username string, cols, rows int) {
+func (s *Server) runTUI(channel gossh.Channel, requests <-chan *gossh.Request, username string, cols, rows int, termName string) {
 	defer func() {
 		if r := recover(); r != nil {
 			logutil.Error("TUI panic for %s: %v", username, r)
 		}
 	}()
+
+	lipgloss.SetColorProfile(colorProfileForTerm(termName))
 
 	// Loop: TUI → gdb session → TUI → ... until the user quits normally.
 	curCols, curRows := cols, rows
@@ -580,7 +604,7 @@ func (s *Server) runTUI(channel gossh.Channel, requests <-chan *gossh.Request, u
 		<-goroutineDone
 
 		if sr, ok := app.(SessionResult); ok && sr.WantsRelaunch() {
-			s.runAdminTUI(channel, requests, username, curCols, curRows)
+			s.runAdminTUI(channel, requests, username, curCols, curRows, termName)
 			break
 		}
 

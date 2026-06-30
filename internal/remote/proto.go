@@ -32,9 +32,13 @@ type ExecRequest struct {
 
 // TestInput mirrors sandbox.TestInput for wire encoding.
 type TestInput struct {
-	Stdin    string   `json:"stdin"`
-	Args     []string `json:"args,omitempty"`
-	Expected string   `json:"expected"`
+	Stdin             string   `json:"stdin"`
+	Args              []string `json:"args,omitempty"`
+	Expected          string   `json:"expected,omitempty"`
+	ExpectedStdout    string   `json:"expected_stdout,omitempty"`
+	ExpectedStderr    string   `json:"expected_stderr,omitempty"`
+	HasExpectedStdout bool     `json:"has_expected_stdout,omitempty"`
+	HasExpectedStderr bool     `json:"has_expected_stderr,omitempty"`
 }
 
 // ExecResponse is returned by the server after executing an ExecRequest.
@@ -52,6 +56,8 @@ type ExecResponse struct {
 // Result mirrors sandbox.Result for wire encoding.
 type Result struct {
 	Output   string `json:"output"`
+	Stdout   string `json:"stdout,omitempty"`
+	Stderr   string `json:"stderr,omitempty"`
 	ExitCode int    `json:"exit_code"`
 	Error    string `json:"error,omitempty"`
 }

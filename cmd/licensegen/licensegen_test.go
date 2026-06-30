@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -257,6 +258,41 @@ func TestParseDuration(t *testing.T) {
 		if (got > 0) != tt.wantOK {
 			t.Errorf("parseDuration(%q) = %v, wantOK=%v", tt.input, got, tt.wantOK)
 		}
+	}
+}
+
+func TestGenCourseKeyStandalone(t *testing.T) {
+	cmd := exec.Command("go", "run", "./cmd/licensegen", "--gen-course-key")
+	cmd.Dir = filepath.Join("..", "..")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go run --gen-course-key: %v\n%s", err, out)
+	}
+
+	text := strings.TrimSpace(string(out))
+	const prefix = "course_key: "
+	if !strings.HasPrefix(text, prefix) {
+		t.Fatalf("output %q missing prefix %q", text, prefix)
+	}
+
+	key := strings.TrimPrefix(text, prefix)
+	if len(key) != 64 {
+		t.Fatalf("course key length = %d, want 64 hex chars", len(key))
+	}
+	if _, err := hexDecode(key); err != nil {
+		t.Fatalf("course key is not valid hex: %v", err)
+	}
+}
+
+func TestGenCourseKeyTakesPrecedenceOverLicenseeRequirement(t *testing.T) {
+	cmd := exec.Command("go", "run", "./cmd/licensegen", "--gen-course-key", "--key-file", "missing.json")
+	cmd.Dir = filepath.Join("..", "..")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go run precedence check: %v\n%s", err, out)
+	}
+	if strings.Contains(string(out), "--licensee required") {
+		t.Fatalf("unexpected licensee error in output: %s", out)
 	}
 }
 

@@ -411,6 +411,34 @@ func TestLoad_MultiTest(t *testing.T) {
 	}
 }
 
+func TestLoad_StreamAwareExpected(t *testing.T) {
+	dir := t.TempDir()
+
+	os.WriteFile(filepath.Join(dir, "lesson.md"), []byte(`# Stream test`), 0644)
+	os.WriteFile(filepath.Join(dir, "exercise.c"), []byte(`int main(void) { return 0; }`), 0644)
+	os.WriteFile(filepath.Join(dir, "expected.stdout.txt"), []byte("payload\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "expected.stderr.txt"), []byte("debug\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "expected.stdout.2.txt"), []byte("second-out\n"), 0644)
+
+	lesson, err := LoadLang(dir, "en")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if len(lesson.Tests) != 2 {
+		t.Fatalf("Tests = %d, want 2", len(lesson.Tests))
+	}
+	if !lesson.Tests[0].HasExpectedStdout || lesson.Tests[0].ExpectedStdout != "payload\n" {
+		t.Errorf("Test 1 stdout = %q, has=%v", lesson.Tests[0].ExpectedStdout, lesson.Tests[0].HasExpectedStdout)
+	}
+	if !lesson.Tests[0].HasExpectedStderr || lesson.Tests[0].ExpectedStderr != "debug\n" {
+		t.Errorf("Test 1 stderr = %q, has=%v", lesson.Tests[0].ExpectedStderr, lesson.Tests[0].HasExpectedStderr)
+	}
+	if !lesson.Tests[1].HasExpectedStdout || lesson.Tests[1].ExpectedStdout != "second-out\n" {
+		t.Errorf("Test 2 stdout = %q, has=%v", lesson.Tests[1].ExpectedStdout, lesson.Tests[1].HasExpectedStdout)
+	}
+}
+
 func TestExtractTitle(t *testing.T) {
 	tests := []struct {
 		content string

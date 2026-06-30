@@ -23,6 +23,9 @@ func main() {
 	generateKeys := flag.Bool("gen-key", false, "generate a new keypair")
 	keyPairPath := flag.String("key-file", "ztutor_license_keys.json", "path to keypair file")
 	licensee := flag.String("licensee", "", "licensee name (company/school)")
+	username := flag.String("username", "", "personal license username binding")
+	email := flag.String("email", "", "personal license email binding")
+	licenseID := flag.String("license-id", "", "unique personal license id")
 	maxStudents := flag.Int("max-students", 50, "maximum student count")
 	expiresAfter := flag.String("expires", "", "expiry duration (e.g. 365d, 0 for no expiry)")
 	features := flag.String("features", "multi_user,admin_ui,interviews", "comma-separated feature list")
@@ -43,6 +46,15 @@ func main() {
 		data, _ := json.MarshalIndent(kf, "", "  ")
 		os.WriteFile(*keyPairPath, data, 0600)
 		fmt.Printf("keys written to %s\n", *keyPairPath)
+		return
+	}
+
+	if *generateCourseKey {
+		key := make([]byte, 32)
+		if _, err := rand.Read(key); err != nil {
+			logutil.Fatal("generate course key: %v", err)
+		}
+		fmt.Printf("course_key: %x\n", key)
 		return
 	}
 
@@ -76,17 +88,19 @@ func main() {
 	featList := parseFeatures(*features)
 	courseList := parseFeatures(*courses)
 
-	if *generateCourseKey {
-		key := make([]byte, 32)
-		if _, err := rand.Read(key); err != nil {
-			logutil.Fatal("generate course key: %v", err)
+	if (*username != "" || *email != "") && *licenseID == "" {
+		buf := make([]byte, 16)
+		if _, err := rand.Read(buf); err != nil {
+			logutil.Fatal("generate license id: %v", err)
 		}
-		fmt.Printf("course_key: %x\n", key)
-		*courseKeyHex = fmt.Sprintf("%x", key)
+		*licenseID = fmt.Sprintf("%x", buf)
 	}
 
 	info := license.Info{
 		Licensee:        *licensee,
+		LicenseID:       *licenseID,
+		Username:        *username,
+		Email:           *email,
 		MaxStudents:     *maxStudents,
 		Features:        featList,
 		UnlockedCourses: courseList,
@@ -103,6 +117,15 @@ func main() {
 	os.WriteFile("license_"+sanitize(*licensee)+".key", signed, 0644)
 	fmt.Printf("license written to license_%s.key\n", sanitize(*licensee))
 	fmt.Printf("licensee: %s\n", *licensee)
+	if *username != "" {
+		fmt.Printf("username: %s\n", *username)
+	}
+	if *email != "" {
+		fmt.Printf("email: %s\n", *email)
+	}
+	if *licenseID != "" {
+		fmt.Printf("license_id: %s\n", *licenseID)
+	}
 	fmt.Printf("students: %d\n", *maxStudents)
 	fmt.Printf("features: %v\n", featList)
 	if len(courseList) > 0 {
