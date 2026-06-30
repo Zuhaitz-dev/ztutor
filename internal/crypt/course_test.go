@@ -480,3 +480,42 @@ func TestBinaryCourse_ExtractTarGz_InvalidGzip(t *testing.T) {
 		t.Fatal("expected error for invalid gzip data")
 	}
 }
+
+func TestBinaryCourse_DecodeManifestWrongSignature(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	_, otherPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate other key: %v", err)
+	}
+	m := CourseManifest{
+		CourseID: "course-bad-sig",
+		Version:  "1.0.0",
+		Title:    "Bad Signature",
+		Language: "en",
+	}
+	manifestJSON, _, err := SignManifest(m, priv)
+	if err != nil {
+		t.Fatalf("SignManifest: %v", err)
+	}
+	_, sig, err := SignManifest(m, otherPriv)
+	if err != nil {
+		t.Fatalf("SignManifest bad sig: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "bad-sig.course")
+	bc, err := Create(path, manifestJSON)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	bc.Close()
+	bc, err = Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer bc.Close()
+	if _, err := bc.DecodeManifest(pub, sig); err == nil {
+		t.Fatal("expected DecodeManifest to fail with mismatched signature")
+	}
+}

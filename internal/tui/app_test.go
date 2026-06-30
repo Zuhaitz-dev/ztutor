@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -196,6 +197,87 @@ func TestReadLicenseValue_ResolvesDataDirFallback(t *testing.T) {
 	}
 	if string(got) != string(want) {
 		t.Fatalf("readLicenseValue = %q, want %q", got, want)
+	}
+}
+
+func TestResolveLicensePath_AbsolutePath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "license.key")
+	if err := os.WriteFile(path, []byte("x"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got, ok := resolveLicensePath(path)
+	if !ok || got != path {
+		t.Fatalf("resolveLicensePath = (%q, %v), want (%q, true)", got, ok, path)
+	}
+}
+
+func TestResolveLicensePath_HomeFallback(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, "license.key")
+	if err := os.WriteFile(path, []byte("x"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got, ok := resolveLicensePath("license.key")
+	if !ok || got != path {
+		t.Fatalf("resolveLicensePath = (%q, %v), want (%q, true)", got, ok, path)
+	}
+}
+
+func TestResolveLicensePath_RawJSONIsNotPath(t *testing.T) {
+	got, ok := resolveLicensePath(`{"sig":"abc","payload":{}}`)
+	if ok || got != "" {
+		t.Fatalf("resolveLicensePath = (%q, %v), want empty/false", got, ok)
+	}
+}
+
+func TestMergeLicenseStates(t *testing.T) {
+	base := &license.State{
+		Licensed:        true,
+		Licensee:        "Base",
+		LicenseID:       "base-id",
+		Username:        "alice",
+		MaxStudents:     10,
+		ExpiresAt:       time.Now().Add(24 * time.Hour),
+		UnlockedCourses: []string{"c-programming", "redis"},
+		CourseKey:       []byte{1, 2, 3},
+		HasMultiUser:    true,
+	}
+	extra := &license.State{
+		Licensed:              true,
+		Licensee:              "Extra",
+		LicenseID:             "extra-id",
+		Email:                 "alice@example.com",
+		MaxStudents:           20,
+		ExpiresAt:             time.Now().Add(48 * time.Hour),
+		UnlockedCourses:       []string{"redis", "python"},
+		CourseKey:             []byte{9, 9, 9},
+		HasAdminUI:            true,
+		HasInterviewQuestions: true,
+	}
+
+	merged := mergeLicenseStates(base, extra)
+	if merged.Licensee != "Base" || merged.LicenseID != "base-id" || merged.Username != "alice" {
+		t.Fatalf("merged identity fields = %+v", merged)
+	}
+	if merged.Email != "alice@example.com" {
+		t.Fatalf("merged.Email = %q, want alice@example.com", merged.Email)
+	}
+	if merged.MaxStudents != 10 {
+		t.Fatalf("merged.MaxStudents = %d, want 10", merged.MaxStudents)
+	}
+	if !merged.ExpiresAt.Equal(extra.ExpiresAt) {
+		t.Fatalf("merged.ExpiresAt = %v, want %v", merged.ExpiresAt, extra.ExpiresAt)
+	}
+	if !merged.HasMultiUser || !merged.HasAdminUI || !merged.HasInterviewQuestions {
+		t.Fatalf("merged feature flags = %+v", merged)
+	}
+	if !reflect.DeepEqual(merged.CourseKey, []byte{1, 2, 3}) {
+		t.Fatalf("merged.CourseKey = %v, want base key", merged.CourseKey)
+	}
+	if !reflect.DeepEqual(merged.UnlockedCourses, []string{"c-programming", "redis", "python"}) {
+		t.Fatalf("merged.UnlockedCourses = %v", merged.UnlockedCourses)
 	}
 }
 

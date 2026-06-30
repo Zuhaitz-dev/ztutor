@@ -176,6 +176,7 @@ func loadStartupLicense(username string, database *db.DB, dataDir string) *licen
 	if info.IsPersonal() {
 		if err := database.RedeemPersonalLicense(username, info, data); err != nil {
 			logutil.Warn("redeem personal license from %s: %v", licenseFile, err)
+			return nil
 		}
 	}
 	logutil.Info("license loaded from %s", licenseFile)

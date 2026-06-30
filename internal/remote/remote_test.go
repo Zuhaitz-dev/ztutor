@@ -93,6 +93,30 @@ func TestHandleConn_Ping(t *testing.T) {
 	<-done
 }
 
+func TestHandleConn_AuthFailure(t *testing.T) {
+	server, client := mustPair(t)
+	done := make(chan struct{})
+	oldToken := execToken
+	execToken = "secret"
+	defer func() { execToken = oldToken }()
+	go func() {
+		handleConn(server)
+		close(done)
+	}()
+
+	req := ExecRequest{Op: OpPing}
+	json.NewEncoder(client).Encode(req)
+	var resp ExecResponse
+	if err := json.NewDecoder(client).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Error != "auth failed: invalid or missing token" {
+		t.Fatalf("resp.Error = %q, want auth failure", resp.Error)
+	}
+	client.Close()
+	<-done
+}
+
 func TestDispatch_RunSuccess(t *testing.T) {
 	// Only test dispatch with languages that are available on this system.
 	lang := sandbox.GetLanguage("c")
@@ -251,6 +275,35 @@ func TestResultConversion_Nil(t *testing.T) {
 	}
 }
 
+func TestEffectiveFiles_LegacyCodeFallback(t *testing.T) {
+	lang := sandbox.GetLanguage("c")
+	if lang == nil {
+		t.Skip("C toolchain not available")
+	}
+	got := effectiveFiles(ExecRequest{Code: "int main(){return 0;}"}, lang)
+	if got[lang.SourceFileName()] == "" {
+		t.Fatalf("effectiveFiles did not populate legacy code fallback: %v", got)
+	}
+}
+
+func TestFromTestInputs_PreservesStreamExpectations(t *testing.T) {
+	in := []TestInput{{
+		Stdin:             "in",
+		Args:              []string{"a"},
+		ExpectedStdout:    "out",
+		ExpectedStderr:    "err",
+		HasExpectedStdout: true,
+		HasExpectedStderr: true,
+	}}
+	got := fromTestInputs(in)
+	if len(got) != 1 {
+		t.Fatalf("len(got) = %d, want 1", len(got))
+	}
+	if got[0].ExpectedStdout != "out" || got[0].ExpectedStderr != "err" || !got[0].HasExpectedStdout || !got[0].HasExpectedStderr {
+		t.Fatalf("fromTestInputs lost stream expectations: %+v", got[0])
+	}
+}
+
 func TestClient_BadAddr(t *testing.T) {
 	client := NewClient("127.0.0.1:1")
 	_, err := client.Run(sandbox.GetLanguage("c"), nil, "", "", nil, nil)
@@ -263,7 +316,7 @@ func TestClient_AuthRejection(t *testing.T) {
 	// Start a local server that requires a token.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("listen not permitted in this environment: %v", err)
 	}
 	defer ln.Close()
 

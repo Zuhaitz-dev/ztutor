@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"context"
+	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -39,6 +40,15 @@ func newTestTUI() *TUIProvider {
 		},
 		LoadAchievements: func(path string) {},
 	}
+}
+
+func requireTCPListener(t *testing.T) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("tcp listening not permitted in this environment: %v", err)
+	}
+	ln.Close()
 }
 
 // waitForListener polls until the server has bound a port, then returns the address string.
@@ -98,6 +108,7 @@ func TestServerSSHConnection(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	requireTCPListener(t)
 
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
@@ -154,6 +165,7 @@ func TestServerSSHBadPassword(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	requireTCPListener(t)
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
 	database, _ := db.Open(dbPath)
@@ -181,6 +193,7 @@ func TestServerSSHBadUser(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	requireTCPListener(t)
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
 	database, _ := db.Open(dbPath)
@@ -211,6 +224,7 @@ func TestServer_SetupToken_FirstUser(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	requireTCPListener(t)
 	dir := t.TempDir()
 	token := db.GenerateSetupToken()
 	srv, err := New(Config{
@@ -268,6 +282,7 @@ func TestServer_AdminUser_RoutesToAdminTUI(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	requireTCPListener(t)
 	var adminCalled, studentCalled bool
 	tui := &TUIProvider{
 		NewStudentApp: func(username, coursesDir, lessonsDir string, d *db.DB, lic *license.State, width, height int, keymap string, launchGDB func(*sandbox.DebugBuild, lesson.Lesson), startLesson *lesson.Lesson) tea.Model {
@@ -332,6 +347,7 @@ func TestServer_ShellWithoutPTY_Rejected(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	requireTCPListener(t)
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
 	database, _ := db.Open(dbPath)
@@ -368,6 +384,7 @@ func TestServer_KeyboardInteractiveAuth(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	requireTCPListener(t)
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
 	database, _ := db.Open(dbPath)
@@ -420,6 +437,7 @@ func TestServer_MaxConns(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	requireTCPListener(t)
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
 	database, _ := db.Open(dbPath)

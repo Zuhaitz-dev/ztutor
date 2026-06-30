@@ -1,9 +1,11 @@
 package db
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestOpenAndClose(t *testing.T) {
@@ -315,6 +317,119 @@ func TestUpdateStreak(t *testing.T) {
 	streak2 := db.UpdateStreak("alice")
 	if streak2 != 1 {
 		t.Errorf("same day streak = %d, want 1", streak2)
+	}
+}
+
+func TestUpdateStreak_ContinuesFromYesterday(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	if err := db.SetUserSetting("alice", "last_login", yesterday); err != nil {
+		t.Fatalf("SetUserSetting last_login: %v", err)
+	}
+	if err := db.SetUserSetting("alice", "streak", "4"); err != nil {
+		t.Fatalf("SetUserSetting streak: %v", err)
+	}
+
+	if got := db.UpdateStreak("alice"); got != 5 {
+		t.Fatalf("UpdateStreak = %d, want 5", got)
+	}
+}
+
+func TestUpdateStreak_ResetsAfterGap(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+
+	old := time.Now().AddDate(0, 0, -3).Format("2006-01-02")
+	db.SetUserSetting("alice", "last_login", old)
+	db.SetUserSetting("alice", "streak", "9")
+
+	if got := db.UpdateStreak("alice"); got != 1 {
+		t.Fatalf("UpdateStreak = %d, want 1", got)
+	}
+}
+
+func TestMigrate_BootstrapsExistingSchema(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bootstrap.db")
+	conn, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	if _, err := conn.Exec(`CREATE TABLE progress (
+		username TEXT NOT NULL,
+		lesson_id TEXT NOT NULL,
+		completed INTEGER DEFAULT 0,
+		started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		stars INTEGER DEFAULT 0,
+		completed_at TIMESTAMP,
+		PRIMARY KEY (username, lesson_id)
+	);
+	CREATE TABLE settings (
+		username TEXT NOT NULL,
+		key TEXT NOT NULL,
+		value TEXT NOT NULL,
+		PRIMARY KEY (username, key)
+	);
+	CREATE TABLE achievements (
+		username TEXT NOT NULL,
+		achievement TEXT NOT NULL,
+		earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (username, achievement)
+	);
+	CREATE TABLE users (
+		username TEXT NOT NULL PRIMARY KEY,
+		password TEXT NOT NULL DEFAULT '',
+		role TEXT NOT NULL DEFAULT 'student',
+		enabled INTEGER NOT NULL DEFAULT 1,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE TABLE enrollments (
+		username TEXT NOT NULL,
+		course_id TEXT NOT NULL,
+		enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (username, course_id)
+	);
+	CREATE TABLE challenge_progress (
+		username TEXT NOT NULL,
+		challenge_id TEXT NOT NULL,
+		course_id TEXT NOT NULL,
+		completed INTEGER DEFAULT 0,
+		attempts INTEGER DEFAULT 0,
+		best_output TEXT,
+		completed_at TIMESTAMP,
+		PRIMARY KEY (username, challenge_id)
+	);`); err != nil {
+		t.Fatalf("seed old schema: %v", err)
+	}
+	conn.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open migrated db: %v", err)
+	}
+	defer db.Close()
+
+	if !tableHasColumn(db.conn, "license_redemptions", "license_blob") {
+		t.Fatal("license_redemptions migration did not apply")
+	}
+	var maxVersion int
+	if err := db.conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&maxVersion); err != nil {
+		t.Fatalf("query schema_migrations: %v", err)
+	}
+	if maxVersion != len(migrations) {
+		t.Fatalf("schema_migrations max = %d, want %d", maxVersion, len(migrations))
 	}
 }
 
