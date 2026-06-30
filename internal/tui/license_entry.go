@@ -3,6 +3,8 @@ package tui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"ztutor/internal/i18n"
 
@@ -75,5 +77,54 @@ func readLicenseValue(val string) ([]byte, error) {
 	if _, err := os.Stat(val); err == nil {
 		return os.ReadFile(val)
 	}
+	if resolved, ok := resolveLicensePath(val); ok {
+		return os.ReadFile(resolved)
+	}
+	if looksLikeLicensePath(val) {
+		return nil, fmt.Errorf("license file not found: %s", val)
+	}
 	return []byte(val), nil
+}
+
+func looksLikeLicensePath(val string) bool {
+	if val == "" {
+		return false
+	}
+	if filepath.IsAbs(val) || strings.ContainsRune(val, os.PathSeparator) {
+		return true
+	}
+	return strings.HasSuffix(strings.ToLower(val), ".key")
+}
+
+func resolveLicensePath(val string) (string, bool) {
+	if !looksLikeLicensePath(val) {
+		return "", false
+	}
+	candidates := []string{val}
+	if !filepath.IsAbs(val) {
+		if exe, err := os.Executable(); err == nil {
+			candidates = append(candidates, filepath.Join(filepath.Dir(exe), val))
+		}
+		candidates = append(candidates, filepath.Join(defaultLicenseDataDir(), val))
+		if home, err := os.UserHomeDir(); err == nil {
+			candidates = append(candidates, filepath.Join(home, val))
+		}
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, true
+		}
+	}
+	return "", false
+}
+
+func defaultLicenseDataDir() string {
+	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
+		return filepath.Join(dir, "ztutor")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "."
+	}
+	return filepath.Join(home, ".local", "share", "ztutor")
 }

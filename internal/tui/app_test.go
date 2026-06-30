@@ -2,6 +2,8 @@ package tui
 
 import (
 	"encoding/hex"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -90,6 +92,29 @@ func TestAppNavigateToLicenseSummary_ShowsSummary(t *testing.T) {
 	}
 }
 
+func TestLicenseSummary_ShowsInstalledAndMissingCourses(t *testing.T) {
+	lic := &license.State{
+		Licensed:        true,
+		Licensee:        "Acme",
+		UnlockedCourses: []string{"c-programming", "redis-capstone"},
+	}
+	courses := []lesson.Course{
+		{ID: "c-programming", Title: "C Programming"},
+	}
+	screen := NewLicenseSummaryScreen(testLocale(), lic, courses, 80, 24)
+	view := stripANSI(screen.View())
+	for _, want := range []string{
+		"Installed now: 1 installed course(s)",
+		"C Programming (c-programming)",
+		"Not installed: 1 missing course(s)",
+		"redis-capstone",
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("license summary missing %q, got:\n%s", want, view)
+		}
+	}
+}
+
 func TestAppRedeemsPersonalLicenseAndReloadsIt(t *testing.T) {
 	database := testDB(t)
 	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {
@@ -143,6 +168,34 @@ func TestAppRedeemsPersonalLicenseAndReloadsIt(t *testing.T) {
 	}
 	if got := hex.EncodeToString(app2.lic.CourseKey); got != info.CourseKey {
 		t.Fatalf("reloaded course key = %q, want %q", got, info.CourseKey)
+	}
+}
+
+func TestReadLicenseValue_MissingPathReturnsHelpfulError(t *testing.T) {
+	_, err := readLicenseValue("/definitely/missing/license.key")
+	if err == nil || !strings.Contains(err.Error(), "license file not found") {
+		t.Fatalf("readLicenseValue error = %v, want helpful file-not-found error", err)
+	}
+}
+
+func TestReadLicenseValue_ResolvesDataDirFallback(t *testing.T) {
+	dataHome := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dataHome)
+	path := filepath.Join(dataHome, "ztutor", "license.key")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	want := []byte("license-bytes")
+	if err := os.WriteFile(path, want, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := readLicenseValue("license.key")
+	if err != nil {
+		t.Fatalf("readLicenseValue: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("readLicenseValue = %q, want %q", got, want)
 	}
 }
 

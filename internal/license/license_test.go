@@ -187,6 +187,30 @@ func TestCheckTamperedLicense(t *testing.T) {
 	}
 }
 
+func TestCheckDataWithoutPublicKey(t *testing.T) {
+	pub, priv, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair: %v", err)
+	}
+	_ = pub
+	SetPublicKey(nil)
+	t.Cleanup(func() { SetPublicKey(nil) })
+
+	info := Info{
+		Licensee: "Acme",
+		IssuedAt: time.Now().Format(time.RFC3339),
+	}
+	signed, err := Sign(priv, info)
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	_, _, err = CheckData(signed)
+	if err == nil || err.Error() != "license verification key not configured" {
+		t.Fatalf("CheckData error = %v, want license verification key not configured", err)
+	}
+}
+
 func TestInfoExpired(t *testing.T) {
 	past := Info{ExpiresAt: time.Now().Add(-time.Hour).Format(time.RFC3339)}
 	future := Info{ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339)}

@@ -394,7 +394,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case NavigateToLicenseSummary:
 		if a.lic != nil && a.lic.Licensed {
-			a.current = NewLicenseSummaryScreen(a.loc, a.lic, a.Width, a.Height)
+			a.current = NewLicenseSummaryScreen(a.loc, a.lic, a.courses, a.Width, a.Height)
 		} else {
 			a.current = NewLicenseEntryScreen(a.loc, a.Width, a.Height, a.submitLicenseEntry)
 		}
@@ -404,7 +404,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil && msg.licState != nil {
 			a.lic = mergeLicenseStates(a.lic, msg.licState)
 			a.loadCourses()
-			a.current = NewLicenseSummaryScreen(a.loc, a.lic, a.Width, a.Height)
+			a.current = NewLicenseSummaryScreen(a.loc, a.lic, a.courses, a.Width, a.Height)
 		} else if s, ok := a.current.(*licenseEntryScreen); ok {
 			s.form.SetMessage(fmt.Sprintf(s.loc.T("license_entry.invalid"), msg.err), true)
 		}

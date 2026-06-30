@@ -93,6 +93,10 @@ func CheckData(data []byte) (*State, Info, error) {
 		return nil, Info{}, fmt.Errorf("invalid license: %w", err)
 	}
 
+	if len(publicKey) == 0 {
+		return nil, Info{}, fmt.Errorf("license verification key not configured")
+	}
+
 	if !verify(sig, info) {
 		return nil, Info{}, fmt.Errorf("license signature verification failed")
 	}

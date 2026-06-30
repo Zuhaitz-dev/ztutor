@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -9,6 +11,7 @@ import (
 
 	"ztutor/internal/db"
 	"ztutor/internal/lesson"
+	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 	"ztutor/internal/remote"
 	"ztutor/internal/sandbox"
@@ -46,11 +49,15 @@ func main() {
 
 	username := currentUser()
 
+	configureLicensePublicKey()
+
 	if _, err := database.GetUser(username); err != nil {
 		if err := database.CreateUser(username, "", db.RoleStudent); err != nil {
 			logutil.Fatal("create user: %v", err)
 		}
 	}
+
+	lic := loadStartupLicense(username, database, dataDir)
 
 	// Configure remote execution server: env vars take priority over DB user settings.
 	execAddr := os.Getenv("ZTUTOR_EXEC_ADDR")
@@ -105,7 +112,7 @@ func main() {
 			coursesDir,
 			lessonsDir,
 			database,
-			nil,
+			lic,
 			width, height,
 			keymap,
 			func(build *sandbox.DebugBuild, l lesson.Lesson) {
@@ -136,6 +143,63 @@ func main() {
 		pendingGDB.Close()
 		resumeLesson = &pendingLesson
 	}
+}
+
+func configureLicensePublicKey() {
+	pubKeyHex := os.Getenv("ZTUTOR_LICENSE_PUBKEY")
+	if pubKeyHex == "" {
+		return
+	}
+	b, err := hex.DecodeString(pubKeyHex)
+	if err != nil {
+		logutil.Warn("invalid ZTUTOR_LICENSE_PUBKEY: %v", err)
+		return
+	}
+	license.SetPublicKey(ed25519.PublicKey(b))
+}
+
+func loadStartupLicense(username string, database *db.DB, dataDir string) *license.State {
+	licenseFile := discoverLicenseFile(dataDir)
+	if licenseFile == "" {
+		return nil
+	}
+	data, err := os.ReadFile(licenseFile)
+	if err != nil {
+		logutil.Warn("read license file %s: %v", licenseFile, err)
+		return nil
+	}
+	state, info, err := license.CheckData(data)
+	if err != nil {
+		logutil.Warn("license file %s: %v", licenseFile, err)
+		return nil
+	}
+	if info.IsPersonal() {
+		if err := database.RedeemPersonalLicense(username, info, data); err != nil {
+			logutil.Warn("redeem personal license from %s: %v", licenseFile, err)
+		}
+	}
+	logutil.Info("license loaded from %s", licenseFile)
+	return state
+}
+
+func discoverLicenseFile(dataDir string) string {
+	if explicit := os.Getenv("ZTUTOR_LICENSE_FILE"); explicit != "" {
+		if _, err := os.Stat(explicit); err == nil {
+			return explicit
+		}
+		return ""
+	}
+	candidates := []string{"license.key"}
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "license.key"))
+	}
+	candidates = append(candidates, filepath.Join(dataDir, "license.key"))
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
 }
 
 func runLocalGDB(build *sandbox.DebugBuild) {

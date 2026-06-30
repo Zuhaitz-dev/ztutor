@@ -154,7 +154,7 @@ func TestLicenseSummaryScreen_View(t *testing.T) {
 		HasInterviewQuestions: true,
 	}
 
-	screen := NewLicenseSummaryScreen(testLocale(), lic, 80, 24)
+	screen := NewLicenseSummaryScreen(testLocale(), lic, nil, 80, 24)
 	view := stripANSI(screen.View())
 
 	for _, want := range []string{"License Summary", "Premium", "Acme School", "1 course(s)", "interviews"} {

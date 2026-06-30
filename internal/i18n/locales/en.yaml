@@ -345,6 +345,11 @@ license_summary.features_none: "premium content only"
 license_summary.feature.multi_user: "multi-user"
 license_summary.feature.admin_ui: "admin dashboard"
 license_summary.feature.interviews: "interviews"
+license_summary.installed_now: "Installed now:"
+license_summary.installed_count: "%d installed course(s)"
+license_summary.not_installed: "Not installed:"
+license_summary.not_installed_count: "%d missing course(s)"
+license_summary.not_installed_unknown: "licensed content may still need to be installed"
 
 # Pre-exercise screen
 pre_exercise.label: "lesson:"
