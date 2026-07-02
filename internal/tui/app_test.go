@@ -586,6 +586,48 @@ func TestAppLessonCompleted_PathCourseAdvancesSelectedNode(t *testing.T) {
 	}
 }
 
+func TestAppUpdateNotification_AddsPendingNotification(t *testing.T) {
+	database := testDB(t)
+	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+
+	if len(app.pendingNotifications) != 0 {
+		t.Fatalf("pendingNotifications = %d, want 0", len(app.pendingNotifications))
+	}
+
+	_, cmd := app.Update(updateCheckMsg{
+		version: "v2.0.0",
+		url:     "https://github.com/Zuhaitz-dev/ztutor/releases/tag/v2.0.0",
+	})
+	if cmd != nil {
+		t.Fatal("expected nil cmd from updateCheckMsg handler")
+	}
+	if len(app.pendingNotifications) != 1 {
+		t.Fatalf("pendingNotifications = %d, want 1", len(app.pendingNotifications))
+	}
+	if !strings.Contains(app.pendingNotifications[0], "v2.0.0") {
+		t.Errorf("notification = %q, want to contain v2.0.0", app.pendingNotifications[0])
+	}
+}
+
+func TestAppUpdateNotification_EmptyVersionDoesNothing(t *testing.T) {
+	database := testDB(t)
+	if err := database.CreateUser("bob", "", db.RoleStudent); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	app := NewApp("bob", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+
+	_, cmd := app.Update(updateCheckMsg{version: "", url: ""})
+	if cmd != nil {
+		t.Fatal("expected nil cmd for empty updateCheckMsg")
+	}
+	if len(app.pendingNotifications) != 0 {
+		t.Errorf("pendingNotifications = %d, want 0", len(app.pendingNotifications))
+	}
+}
+
 func TestAppSettingsSaveStaysOnSettings(t *testing.T) {
 	database := testDB(t)
 	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {

@@ -16,6 +16,7 @@ import (
 	"ztutor/internal/remote"
 	"ztutor/internal/sandbox"
 	"ztutor/internal/tui"
+	"ztutor/internal/update"
 	"ztutor/internal/version"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,7 +25,20 @@ import (
 
 func main() {
 	verbose := flag.Bool("v", false, "enable verbose debug logging")
+	showVersion := flag.Bool("version", false, "print version and exit")
+	checkUpdate := flag.Bool("check-update", false, "check for a newer release and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version.String())
+		return
+	}
+
+	if *checkUpdate {
+		checkAndPrintUpdate()
+		return
+	}
+
 	logutil.SetVerbose(*verbose)
 
 	logutil.Info("%s", version.String())
@@ -262,4 +276,20 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func checkAndPrintUpdate() {
+	info, err := update.CheckLatest(version.Version, nil, "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Update check failed: %v\n", err)
+		os.Exit(1)
+	}
+	if info == nil {
+		fmt.Printf("ztutor %s is up to date.\n", version.Version)
+		return
+	}
+	fmt.Printf("New version %s available\n", info.Version)
+	fmt.Printf("  Released: %s\n", info.PublishedAt)
+	fmt.Printf("  Download: %s\n", info.ReleaseURL)
+	fmt.Printf("\nRun update-ztutor.sh to install automatically.\n")
 }

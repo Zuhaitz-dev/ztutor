@@ -178,6 +178,33 @@ func writeFiles(dir string, files map[string]string) error {
 	return nil
 }
 
+// ensureProg makes sure dir/prog exists after a custom build command.
+// If the build produced a differently-named binary (e.g. "redis-server"),
+// it renames it to "prog" so the subsequent lang.Execute() call can find it.
+func ensureProg(dir string) {
+	progPath := filepath.Join(dir, "prog")
+	if _, err := os.Stat(progPath); err == nil {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.Mode().IsRegular() && info.Mode()&0111 != 0 {
+			os.Rename(filepath.Join(dir, e.Name()), progPath)
+			return
+		}
+	}
+}
+
 // runBuildCmd executes a build command (e.g. "make") in dir.
 // Non-empty Result.Error means the build failed.
 func runBuildCmd(dir, buildCmd string) *Result {
@@ -242,6 +269,7 @@ func Run(lang Language, files map[string]string, buildCmd, stdin string, extraFl
 		if r := runBuildCmd(dir, buildCmd); r.Error != "" {
 			return r, nil
 		}
+		ensureProg(dir)
 	} else if lang.IsCompiled() {
 		srcPaths := primarySrcPaths(dir, lang, files)
 		flags := appendSlice(lang.DefaultFlags(), extraFlags)
@@ -278,6 +306,7 @@ func RunWithASAN(lang Language, files map[string]string, buildCmd, stdin string,
 		if r := runBuildCmd(dir, buildCmd); r.Error != "" {
 			return r, nil
 		}
+		ensureProg(dir)
 	} else {
 		srcPaths := primarySrcPaths(dir, lang, files)
 		flags := appendSlice(lang.SanitizerFlags(), extraFlags)
@@ -310,6 +339,7 @@ func CompileDebug(lang Language, files map[string]string, buildCmd string, extra
 			os.RemoveAll(dir)
 			return nil, r
 		}
+		ensureProg(dir)
 		return &DebugBuild{BinaryPath: filepath.Join(dir, "prog"), dir: dir}, &Result{}
 	}
 
@@ -383,6 +413,7 @@ func RunAllTests(lang Language, files map[string]string, buildCmd string, extraF
 		if compileRes.Error != "" {
 			return compileRes, nil, nil
 		}
+		ensureProg(dir)
 	} else if lang.IsCompiled() {
 		srcPaths := primarySrcPaths(dir, lang, files)
 		flags := appendSlice(lang.DefaultFlags(), extraFlags)

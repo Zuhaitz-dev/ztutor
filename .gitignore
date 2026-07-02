@@ -17,8 +17,6 @@ ztutor_host_key.pub
 
 # Secrets
 .env
-ztutor_license_keys.json
-test_keys.json
 
 # Encrypted course packages (binary blobs, not for VCS)
 *.course

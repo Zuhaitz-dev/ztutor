@@ -4,12 +4,88 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"ztutor/internal/crypt"
 )
+
+func decodeHexKey(hexStr string) ([32]byte, error) {
+	var key [32]byte
+	b, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return key, err
+	}
+	if len(b) != 32 {
+		return key, fmt.Errorf("key length %d, want 32", len(b))
+	}
+	copy(key[:], b)
+	return key, nil
+}
+
+func packTestCourseWithKey(t *testing.T, courseID, dir string, key [32]byte) (coursePath string, pub ed25519.PublicKey, err error) {
+	t.Helper()
+	pub, priv, genErr := ed25519.GenerateKey(rand.Reader)
+	if genErr != nil {
+		return "", nil, genErr
+	}
+
+	manifestJSON, _, genErr := crypt.SignManifest(crypt.CourseManifest{
+		CourseID: courseID,
+		Version:  "1.0",
+		Title:    "Test Course",
+		Language: "c",
+	}, priv)
+	if genErr != nil {
+		return "", nil, genErr
+	}
+
+	var tarBuf bytes.Buffer
+	if genErr := crypt.BuildTarGz(&tarBuf, dir); genErr != nil {
+		return "", nil, genErr
+	}
+
+	encrypted, genErr := crypt.Encrypt(tarBuf.Bytes(), key[:], courseID)
+	if genErr != nil {
+		return "", nil, genErr
+	}
+
+	coursePath = filepath.Join(t.TempDir(), courseID+".course")
+	bc, genErr := crypt.Create(coursePath, manifestJSON)
+	if genErr != nil {
+		return "", nil, genErr
+	}
+	defer bc.Close()
+
+	if genErr := bc.WritePayload(encrypted); genErr != nil {
+		return "", nil, genErr
+	}
+
+	return coursePath, pub, nil
+}
+
+func createTestCourseDirWithID(t *testing.T, dir, courseID string) {
+	t.Helper()
+
+	manifest := fmt.Sprintf(`id: %s
+title: Test Course
+language: c
+order: 2
+sections:
+  - id: intro
+    title: Introduction
+    type: exercises
+    dir: lessons/
+`, courseID)
+	os.WriteFile(filepath.Join(dir, "course.yaml"), []byte(manifest), 0644)
+
+	lessonDir := filepath.Join(dir, "lessons", "01-intro")
+	os.MkdirAll(lessonDir, 0755)
+	os.WriteFile(filepath.Join(lessonDir, "lesson.md"), []byte("# 01: Introduction\n\nWelcome.\n"), 0644)
+}
 
 func createTestCourseDir(t *testing.T, dir string) {
 	t.Helper()
@@ -306,6 +382,77 @@ func TestScanEncryptedCourses_EmptyDir(t *testing.T) {
 	}
 	if len(courses) != 0 {
 		t.Errorf("courses = %d, want 0", len(courses))
+	}
+}
+
+func TestLoadEncryptedCourse_WithCampaignBackerKey(t *testing.T) {
+	// This test verifies the full end-to-end flow that a campaign backer
+	// license user would experience: the license contains a course_key and
+	// unlocked_courses list; when a .course file with a matching ID is
+	// placed in the courses directory, it should load and decrypt correctly.
+	//
+	// The campaign backer key's course_key is:
+	//   0487330b846bd44c20ce39d4ede89d503171c6bf3696bd83c67a6287ffa751d9
+
+	courseKeyHex := "0487330b846bd44c20ce39d4ede89d503171c6bf3696bd83c67a6287ffa751d9"
+	expectedCourseID := "c-module-02"
+
+	courseDir := t.TempDir()
+	createTestCourseDirWithID(t, courseDir, expectedCourseID)
+
+	// Pack the course with the EXACT campaign backer key.
+	key, err := decodeHexKey(courseKeyHex)
+	if err != nil {
+		t.Fatalf("decode course key: %v", err)
+	}
+
+	coursePath, _, err := packTestCourseWithKey(t, expectedCourseID, courseDir, key)
+	if err != nil {
+		t.Fatalf("pack test course: %v", err)
+	}
+
+	// Load the course using the campaign backer key (as the user's license would).
+	// This simulates the exact call from app.go's loadCourses:
+	//   encrypted, _ := lesson.ScanEncryptedCourses(a.coursesDir, lang, courseKey, courses)
+	c, err := LoadEncryptedCourse(coursePath, "en", key[:])
+	if err != nil {
+		t.Fatalf("LoadEncryptedCourse with campaign backer key: %v", err)
+	}
+	if c == nil {
+		t.Fatal("course is nil")
+	}
+	if !c.Encrypted {
+		t.Error("Encrypted = false, want true")
+	}
+	if c.ID != expectedCourseID {
+		t.Errorf("ID = %q, want %q", c.ID, expectedCourseID)
+	}
+	if len(c.Sections) == 0 {
+		t.Fatal("no sections loaded")
+	}
+	if c.TotalLessons < 1 {
+		t.Errorf("TotalLessons = %d, want >= 1", c.TotalLessons)
+	}
+
+	// Verify ScanEncryptedCourses also works with this key.
+	scanDir := t.TempDir()
+	os.Rename(coursePath, filepath.Join(scanDir, expectedCourseID+".course"))
+
+	courses, err := ScanEncryptedCourses(scanDir, "en", key[:], nil)
+	if err != nil {
+		t.Fatalf("ScanEncryptedCourses: %v", err)
+	}
+	found := false
+	for _, cc := range courses {
+		if cc.ID == expectedCourseID {
+			found = true
+			if !cc.Encrypted {
+				t.Error("course should be marked Encrypted")
+			}
+		}
+	}
+	if !found {
+		t.Errorf("ScanEncryptedCourses did not return course %q", expectedCourseID)
 	}
 }
 

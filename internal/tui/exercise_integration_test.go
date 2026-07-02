@@ -266,6 +266,252 @@ func TestIntegration_CompileError(t *testing.T) {
 	}
 }
 
+func TestIntegration_StreamAwareOutput(t *testing.T) {
+	if !hasGCC() {
+		t.Skip("gcc not available")
+	}
+	l := testLesson("test-stream", `#include <stdio.h>
+int main(void) {
+    fprintf(stdout, "payload\n");
+    fprintf(stderr, "debug: init\n");
+    return 0;
+}`, nil, nil)
+	es := newTestExerciseScreen(t, l)
+
+	code := `#include <stdio.h>
+int main(void) {
+    fprintf(stdout, "payload\n");
+    fprintf(stderr, "debug: init\n");
+    return 0;
+}`
+	es.editor.SwitchFile(code, "c")
+
+	cmd := es.compileCmd("", nil, nil)
+	msg := cmd()
+	result, ok := msg.(compileResultMsg)
+	if !ok {
+		t.Fatalf("expected compileResultMsg, got %T", msg)
+	}
+	if result.err != nil {
+		t.Fatalf("compile error: %v", result.err)
+	}
+	if result.result.Error != "" {
+		t.Fatalf("result error: %s", result.result.Error)
+	}
+	if !strings.Contains(result.result.Stdout, "payload") {
+		t.Errorf("Stdout = %q, want to contain 'payload'", result.result.Stdout)
+	}
+	if !strings.Contains(result.result.Stderr, "debug: init") {
+		t.Errorf("Stderr = %q, want to contain 'debug: init'", result.result.Stderr)
+	}
+}
+
+func TestIntegration_CompileWithFlags(t *testing.T) {
+	if !hasGCC() {
+		t.Skip("gcc not available")
+	}
+	l := testLesson("test-flags", `#ifdef TEST_MODE
+#include <stdio.h>
+int main(void) { printf("test-mode\n"); return 0; }
+#else
+#include <stdio.h>
+int main(void) { printf("production\n"); return 0; }
+#endif`, nil, nil)
+	es := newTestExerciseScreen(t, l)
+
+	code := `#ifdef TEST_MODE
+#include <stdio.h>
+int main(void) { printf("test-mode\n"); return 0; }
+#else
+#include <stdio.h>
+int main(void) { printf("production\n"); return 0; }
+#endif`
+	es.editor.SwitchFile(code, "c")
+
+	cmd := es.compileCmd("", []string{"-DTEST_MODE"}, nil)
+	msg := cmd()
+	result := msg.(compileResultMsg)
+	if result.err != nil {
+		t.Fatalf("compile error: %v", result.err)
+	}
+	if result.result.Error != "" {
+		t.Fatalf("result error: %s", result.result.Error)
+	}
+	if strings.TrimSpace(result.result.Output) != "test-mode" {
+		t.Errorf("output = %q, want %q", result.result.Output, "test-mode")
+	}
+}
+
+func TestIntegration_CompileWithArgs(t *testing.T) {
+	if !hasGCC() {
+		t.Skip("gcc not available")
+	}
+	l := testLesson("test-args", `#include <stdio.h>
+int main(int argc, char *argv[]) {
+    for (int i = 1; i < argc; i++) printf("[%d] %s\n", i, argv[i]);
+    return 0;
+}`, nil, nil)
+	es := newTestExerciseScreen(t, l)
+
+	code := `#include <stdio.h>
+int main(int argc, char *argv[]) {
+    for (int i = 1; i < argc; i++) printf("[%d] %s\n", i, argv[i]);
+    return 0;
+}`
+	es.editor.SwitchFile(code, "c")
+
+	cmd := es.compileCmd("", nil, []string{"--verbose", "hello"})
+	msg := cmd()
+	result := msg.(compileResultMsg)
+	if result.err != nil {
+		t.Fatalf("compile error: %v", result.err)
+	}
+	if result.result.Error != "" {
+		t.Fatalf("result error: %s", result.result.Error)
+	}
+	if !strings.Contains(result.result.Output, "[1] --verbose") {
+		t.Errorf("output = %q, want to contain [1] --verbose", result.result.Output)
+	}
+	if !strings.Contains(result.result.Output, "[2] hello") {
+		t.Errorf("output = %q, want to contain [2] hello", result.result.Output)
+	}
+}
+
+func hasMake() bool {
+	_, err := exec.LookPath("make")
+	return err == nil
+}
+
+func testMultiFileLesson(id string, files []lesson.ExerciseFile, buildCmd, buildOutput string) lesson.Lesson {
+	return lesson.Lesson{
+		ID:                 id,
+		Title:              "Multi-File Test",
+		Exercise:           "",
+		Files:              files,
+		BuildCmd:           buildCmd,
+		BuildOutput:        buildOutput,
+		Language:           "c",
+		SourceExtension:    ".c",
+		SyntaxHighlighting: "c",
+	}
+}
+
+func TestIntegration_MultiFileCompile(t *testing.T) {
+	if !hasGCC() {
+		t.Skip("gcc not available")
+	}
+	if !hasMake() {
+		t.Skip("make not available")
+	}
+
+	files := []lesson.ExerciseFile{
+		{
+			Name:     "main.c",
+			Editable: true,
+			Language: "c",
+			Content: `#include <stdio.h>
+extern void helper_init(void);
+int main(void) {
+    helper_init();
+    printf("[SERVER] Ready.\n");
+    return 0;
+}`,
+		},
+		{
+			Name:     "helper.c",
+			Editable: true,
+			Language: "c",
+			Content: `#include <stdio.h>
+void helper_init(void) {
+    printf("[HELPER] Booted.\n");
+}`,
+		},
+		{
+			Name:     "Makefile",
+			Editable: true,
+			Language: "makefile",
+			Content: `CFLAGS=-Wall -Wextra -O0
+TARGET=my-server
+OBJS=main.o helper.o
+$(TARGET): $(OBJS)
+	gcc $(CFLAGS) -o $@ $^
+%.o: %.c
+	gcc $(CFLAGS) -c -o $@ $<
+clean:
+	rm -f $(TARGET) *.o
+.PHONY: clean
+`,
+		},
+	}
+
+	l := testMultiFileLesson("test-multi-file", files, "make", "my-server")
+	es := newTestExerciseScreen(t, l)
+
+	// Multi-file: fileList should be created and currentFilesMap returns all files.
+	fmap := es.currentFilesMap()
+	if len(fmap) != 3 {
+		t.Fatalf("currentFilesMap() returned %d files, want 3", len(fmap))
+	}
+	if _, ok := fmap["main.c"]; !ok {
+		t.Error("currentFilesMap missing main.c")
+	}
+	if _, ok := fmap["helper.c"]; !ok {
+		t.Error("currentFilesMap missing helper.c")
+	}
+	if _, ok := fmap["Makefile"]; !ok {
+		t.Error("currentFilesMap missing Makefile")
+	}
+
+	// Compile using the custom build command.
+	cmd := es.compileCmd("", nil, nil)
+	msg := cmd()
+	result, ok := msg.(compileResultMsg)
+	if !ok {
+		t.Fatalf("expected compileResultMsg, got %T", msg)
+	}
+	if result.err != nil {
+		t.Fatalf("compile error: %v", result.err)
+	}
+	if result.result.Error != "" {
+		t.Fatalf("compile result error: %s", result.result.Error)
+	}
+	if !strings.Contains(result.result.Stdout, "[HELPER] Booted.") {
+		t.Errorf("Stdout = %q, want to contain [HELPER] Booted.", result.result.Stdout)
+	}
+	if !strings.Contains(result.result.Stdout, "[SERVER] Ready.") {
+		t.Errorf("Stdout = %q, want to contain [SERVER] Ready.", result.result.Stdout)
+	}
+}
+
+func TestIntegration_DebugCompile(t *testing.T) {
+	if !hasGCC() {
+		t.Skip("gcc not available")
+	}
+	l := testLesson("test-dbg", ``, nil, nil)
+	es := newTestExerciseScreen(t, l)
+
+	code := `#include <stdio.h>
+int main(void) {
+    printf("debug me\n");
+    return 0;
+}`
+	es.editor.SwitchFile(code, "c")
+
+	cmd := es.gdbCompileCmd(nil)
+	msg := cmd()
+	result := msg.(gdbReadyMsg)
+	if result.compileErr != nil && result.compileErr.Error != "" {
+		t.Fatalf("compile error: %s", result.compileErr.Error)
+	}
+	if result.build == nil {
+		t.Fatal("build is nil")
+	}
+	defer result.build.Close()
+	if result.build.BinaryPath == "" {
+		t.Error("BinaryPath is empty")
+	}
+}
+
 func TestIntegration_InteractiveCompile(t *testing.T) {
 	if !hasGCC() {
 		t.Skip("gcc not available")

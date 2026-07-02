@@ -13,6 +13,8 @@ import (
 	"ztutor/internal/logutil"
 	"ztutor/internal/remote"
 	"ztutor/internal/sandbox"
+	"ztutor/internal/update"
+	"ztutor/internal/version"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -104,6 +106,26 @@ type launchAdminMsg struct{}
 
 type changeLangMsg struct{ lang string }
 
+// updateCheckMsg is sent when a background version check completes.
+type updateCheckMsg struct {
+	version string
+	url     string
+}
+
+// checkUpdateCmd returns a tea.Cmd that checks GitHub for a newer release.
+func (a *App) checkUpdateCmd() tea.Cmd {
+	return func() tea.Msg {
+		info, err := update.CheckLatest(version.Version, a.db, a.username)
+		if err != nil || info == nil {
+			return nil
+		}
+		return updateCheckMsg{
+			version: info.Version,
+			url:     info.ReleaseURL,
+		}
+	}
+}
+
 type App struct {
 	username    string
 	db          *db.DB
@@ -194,7 +216,7 @@ func (a *App) WantsRelaunch() bool  { return a.LaunchAdmin }
 func (a *App) RelaunchUser() string { return a.username }
 
 func (a *App) Init() tea.Cmd {
-	cmds := []tea.Cmd{mascotTickCmd()}
+	cmds := []tea.Cmd{mascotTickCmd(), a.checkUpdateCmd()}
 	if a.gamepad != nil {
 		cmds = append(cmds, a.gamepad.Next())
 	}
@@ -267,6 +289,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.mascotFrame++
 		a.applyMascotFrame()
 		return a, mascotTickCmd()
+
+	case updateCheckMsg:
+		if msg.version != "" {
+			notif := fmt.Sprintf("New version %s available — download at %s", msg.version, msg.url)
+			logutil.Info(notif)
+			a.pendingNotifications = append(a.pendingNotifications, notif)
+		}
+		return a, nil
 
 	case introCompleteMsg:
 		if msg.courseID != "" {

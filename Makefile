@@ -47,7 +47,7 @@ docker-push:
 	docker push $(IMAGE):$(VERSION)
 	docker push $(IMAGE):latest
 
-DEV_PUBKEY  := 0d11d19460424c2a9d8a14411acd3f0941197c736f38b8cca35913ee3e230de0
+DEV_PUBKEY  := aad959454bf169a828c90312863eafa064a4b507aa512ef19ca96b37a9d898ce
 DEV_LICENSE := ./license_test.key
 
 ifdef PREMIUM

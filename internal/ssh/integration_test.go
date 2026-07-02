@@ -487,3 +487,55 @@ func TestServer_MaxConns(t *testing.T) {
 	}
 	c3.Close()
 }
+
+func TestServer_MultipleSessions_Sequential(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTCPListener(t)
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	database, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := database.CreateUser("sequser", "seqpass", db.RoleStudent); err != nil {
+		database.Close()
+		t.Fatalf("CreateUser: %v", err)
+	}
+	database.Close()
+
+	srv, err := New(Config{
+		HostKey: filepath.Join(dir, "host_key"), DBPath: dbPath,
+		Addr: ":0", Keymap: "default", MaxConns: 5,
+	}, newTestTUI())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	go srv.ListenAndServe() //nolint:errcheck
+	addr := waitForListener(t, srv)
+	defer func() { srv.Shutdown(context.TODO()); srv.Close() }()
+
+	// Open sequential sessions on the same connection.
+	client, err := dial(addr, "sequser", "seqpass")
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer client.Close()
+
+	for i := 0; i < 3; i++ {
+		sess, err := client.NewSession()
+		if err != nil {
+			t.Fatalf("session %d: %v", i, err)
+		}
+		if err := sess.RequestPty("xterm", 24, 80, gossh.TerminalModes{}); err != nil {
+			sess.Close()
+			t.Fatalf("session %d pty: %v", i, err)
+		}
+		if err := sess.Shell(); err != nil {
+			sess.Close()
+			t.Fatalf("session %d shell: %v", i, err)
+		}
+		sess.Close()
+	}
+}

@@ -58,9 +58,9 @@ jobs:
         run: |
           ARCHIVE=ztutor-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
           if [ "${{ matrix.goos }}" = "linux" ]; then
-            tar -czf "${ARCHIVE}" ztutor ztutord ztutor.service README.md LICENSE LICENSE-COMMERCIAL courses/c-programming
+            tar -czf "${ARCHIVE}" ztutor ztutord ztutor.service update-ztutor.sh README.md LICENSE LICENSE-COMMERCIAL courses/c-programming
           else
-            tar -czf "${ARCHIVE}" ztutor ztutord README.md LICENSE LICENSE-COMMERCIAL courses/c-programming
+            tar -czf "${ARCHIVE}" ztutor ztutord update-ztutor.sh README.md LICENSE LICENSE-COMMERCIAL courses/c-programming
           fi
           echo "ARCHIVE=${ARCHIVE}" >> $GITHUB_ENV
 

@@ -2,7 +2,7 @@
 FROM golang:1.22-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ gdb \
+    gcc g++ gdb make \
     python3 \
     ruby \
     openjdk-17-jdk-headless \

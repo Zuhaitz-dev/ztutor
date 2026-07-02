@@ -291,9 +291,9 @@ func loadSection(dir string, s *Section, lang string) {
 func applyLanguageToSection(s *Section, lang, ext, syntax string) {
 	for i := range s.Lessons {
 		l := &s.Lessons[i]
-		// Don't overwrite language for lessons that declared their own in frontmatter
-		// (indicated by Language already set or multi-file Files populated).
-		if l.Language != "" || len(l.Files) > 0 {
+		// Don't overwrite language for lessons that declared their own
+		// in frontmatter (indicated by Language already being set).
+		if l.Language != "" {
 			continue
 		}
 		l.Language = lang

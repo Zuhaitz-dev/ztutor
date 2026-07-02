@@ -1,7 +1,9 @@
 package main
 
 import (
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -21,5 +23,25 @@ func TestEnvOrDefault(t *testing.T) {
 	}
 	if got := envOrDefault("ZTUTOR_MISSING_ENV", "fallback"); got != "fallback" {
 		t.Fatalf("envOrDefault fallback = %q, want fallback", got)
+	}
+}
+
+func TestVersionFlag(t *testing.T) {
+	out, err := exec.Command("go", "run", ".", "--version").CombinedOutput()
+	if err != nil {
+		t.Fatalf("--version failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "ztutor") {
+		t.Errorf("--version output = %q, want to contain 'ztutor'", string(out))
+	}
+}
+
+func TestCheckUpdateFlag(t *testing.T) {
+	out, err := exec.Command("go", "run", ".", "--check-update").CombinedOutput()
+	if err != nil {
+		t.Fatalf("--check-update failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "up to date") {
+		t.Errorf("--check-update output = %q, want 'up to date'", string(out))
 	}
 }
