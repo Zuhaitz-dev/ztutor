@@ -76,8 +76,14 @@ toolchain:
 `
 	lessonMD := "# Hello World\n\nWrite a program that prints \"Hello, World!\".\n\n## Exercise\n\n```c\n#include <stdio.h>\n\nint main(void) {\n    printf(\"Hello, World!\\n\");\n    return 0;\n}\n```\n"
 
-	os.WriteFile(dir+"/01-intro/course.yaml", []byte(courseYAML), 0644)
-	os.WriteFile(lessonDir+"/lesson.md", []byte(lessonMD), 0644)
+	if err := os.WriteFile(dir+"/01-intro/course.yaml", []byte(courseYAML), 0644); err != nil {
+		fmt.Println("write course.yaml error:", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(lessonDir+"/lesson.md", []byte(lessonMD), 0644); err != nil {
+		fmt.Println("write lesson.md error:", err)
+		os.Exit(1)
+	}
 
 	return dir, func() { os.RemoveAll(dir) }
 }

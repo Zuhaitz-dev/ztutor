@@ -36,6 +36,7 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	conn.SetMaxIdleConns(5)
+	conn.SetMaxOpenConns(25)
 
 	if err := migrate(conn); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)

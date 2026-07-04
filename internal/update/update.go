@@ -6,21 +6,35 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	repoOwner = "Zuhaitz-dev"
-	repoName  = "ztutor"
-	cacheKey  = "update_last_check"
-	cacheTTL  = 24 * time.Hour
-	userAgent = "ztutor-update-check/1.0"
+	defaultRepoOwner = "Zuhaitz-dev"
+	defaultRepoName  = "ztutor"
+	cacheKey         = "update_last_check"
+	cacheTTL         = 24 * time.Hour
+	userAgent        = "ztutor-update-check/1.0"
 )
 
-var apiURL = "https://api.github.com/repos/Zuhaitz-dev/ztutor/releases/latest"
+func buildAPIURL() string {
+	owner := os.Getenv("ZTUTOR_UPDATE_REPO_OWNER")
+	if owner == "" {
+		owner = defaultRepoOwner
+	}
+	name := os.Getenv("ZTUTOR_UPDATE_REPO_NAME")
+	if name == "" {
+		name = defaultRepoName
+	}
+	return fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, name)
+}
+
+var apiURL = buildAPIURL()
 
 // LatestInfo holds information about the newest available release.
 type LatestInfo struct {
@@ -83,37 +97,49 @@ func CheckLatest(currentVersion string, c Cache, username string) (*LatestInfo, 
 	return info, nil
 }
 
-// fetchLatestRelease calls the GitHub API for the latest release.
+// fetchLatestRelease calls the GitHub API for the latest release with retries.
 func fetchLatestRelease() (*LatestInfo, error) {
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", userAgent)
+	const maxRetries = 3
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		req, err := http.NewRequest("GET", apiURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("User-Agent", userAgent)
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
+				time.Sleep(time.Duration(1<<uint(attempt)) * 250 * time.Millisecond)
+				continue
+			}
+			return nil, err
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		}
 
-	var info LatestInfo
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return nil, err
-	}
+		var info LatestInfo
+		if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+			resp.Body.Close()
+			return nil, err
+		}
+		resp.Body.Close()
 
-	if info.Version == "" {
-		return nil, fmt.Errorf("empty version in API response")
-	}
+		if info.Version == "" {
+			return nil, fmt.Errorf("empty version in API response")
+		}
 
-	return &info, nil
+		return &info, nil
+	}
+	return nil, fmt.Errorf("fetch after %d retries: %w", maxRetries, lastErr)
 }
 
 // semverCompare compares two semantic version tags (e.g. "v1.2.3").

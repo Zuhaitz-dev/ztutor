@@ -189,11 +189,12 @@ func (s *Server) ListenAndServe() error {
 			logutil.Info("serving %d student(s) on %s", count, listener.Addr())
 		}
 	} else {
+		tokenPreview := s.config.SetupToken[:20]
 		if s.config.License != nil && s.config.License.HasAdminUI {
-			logutil.Info("no users yet - business setup token: %s", s.config.SetupToken)
+			logutil.Info("no users yet - business setup token prefix: %s...", tokenPreview)
 			logutil.Info("  connect to create the admin account: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
 		} else {
-			logutil.Info("no users yet - learner setup token: %s", s.config.SetupToken)
+			logutil.Info("no users yet - learner setup token prefix: %s...", tokenPreview)
 			logutil.Info("  connect to create the first learner account: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
 		}
 	}
@@ -310,6 +311,11 @@ func (s *Server) handleSession(channel gossh.Channel, requests <-chan *gossh.Req
 
 	if username == "" {
 		username = "user"
+	}
+
+	if !validSessionUsername(username) {
+		logutil.Debug("ssh: rejected invalid username %q", username)
+		return
 	}
 
 	var isAdmin bool
@@ -616,6 +622,19 @@ func (s *Server) runTUI(channel gossh.Channel, requests <-chan *gossh.Request, u
 		pendingGDB.Close()
 		resumeLesson = &pendingLesson // restart directly at the exercise screen
 	}
+}
+
+func validSessionUsername(name string) bool {
+	if len(name) < 1 || len(name) > 64 {
+		return false
+	}
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func loadOrGenerateHostKey(path string) (gossh.Signer, error) {

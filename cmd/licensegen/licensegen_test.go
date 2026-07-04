@@ -254,9 +254,12 @@ func TestParseDuration(t *testing.T) {
 		{"abc", false},
 	}
 	for _, tt := range tests {
-		got := parseDuration(tt.input)
+		got, err := parseDuration(tt.input)
 		if (got > 0) != tt.wantOK {
 			t.Errorf("parseDuration(%q) = %v, wantOK=%v", tt.input, got, tt.wantOK)
+		}
+		if tt.wantOK && err != nil {
+			t.Errorf("parseDuration(%q) unexpected error: %v", tt.input, err)
 		}
 	}
 }

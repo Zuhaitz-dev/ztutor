@@ -53,8 +53,8 @@ func setResourceLimits() []rlimitEntry {
 	// time reaches the limit quickly. Namespace isolation + the 5-second
 	// context deadline already cover the same threat model safely.
 	limits := []rlimitEntry{
-		{syscall.RLIMIT_FSIZE, maxFileSize, maxFileSize, &oldFsize},
-		{syscall.RLIMIT_NOFILE, maxOpenFiles, maxOpenFiles, &oldNofile},
+		{syscall.RLIMIT_FSIZE, Limits.MaxFileSize, Limits.MaxFileSize, &oldFsize},
+		{syscall.RLIMIT_NOFILE, Limits.MaxOpenFiles, Limits.MaxOpenFiles, &oldNofile},
 		{syscall.RLIMIT_CORE, 0, 0, &oldCore},
 	}
 

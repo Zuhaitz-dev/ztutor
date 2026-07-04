@@ -243,7 +243,7 @@ func rubySyntaxCheck(dir, srcPath string, flags []string, compiler string) *Resu
 
 func rubyExecute(dir, stdin string, runtimeArgs, extraEnv []string, compiler string) (*Result, error) {
 	progPath := filepath.Join(dir, "main.rb")
-	ctx, cancel := context.WithTimeout(context.Background(), maxRuntime)
+	ctx, cancel := context.WithTimeout(context.Background(), Limits.MaxRuntime)
 	defer cancel()
 
 	args := append([]string{progPath}, runtimeArgs...)
@@ -380,7 +380,7 @@ func javaSyntaxCheck(dir, srcPath string, flags []string, compiler string) *Resu
 }
 
 func javaExecute(dir, stdin string, runtimeArgs, extraEnv []string, compiler string) (*Result, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), maxRuntime)
+	ctx, cancel := context.WithTimeout(context.Background(), Limits.MaxRuntime)
 	defer cancel()
 
 	args := append([]string{"-cp", dir, "Main"}, runtimeArgs...)

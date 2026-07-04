@@ -13,6 +13,8 @@ ztutor_host_key.pub
 *.key
 !license_test.key
 !license_test_school.key
+# Development keys (never commit to production)
+dev_license_keys.json
 *.pem
 
 # Secrets

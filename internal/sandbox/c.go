@@ -207,7 +207,7 @@ func cleanAssembly(asm string) string {
 // ── Shared execution ──────────────────────────────────────────────────────────
 
 func executeBinary(progPath, dir, stdin string, runtimeArgs, extraEnv []string) (*Result, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), maxRuntime)
+	ctx, cancel := context.WithTimeout(context.Background(), Limits.MaxRuntime)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, progPath, runtimeArgs...)

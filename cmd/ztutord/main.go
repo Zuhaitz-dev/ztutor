@@ -76,6 +76,7 @@ func main() {
 	if err != nil {
 		logutil.Warn("config: %v (using defaults)", err)
 	}
+	cfg.ApplySandboxLimits()
 
 	hostKey := cfg.SSH.HostKey
 	if hostKey == "" || hostKey == "ztutor_host_key" {
@@ -146,6 +147,11 @@ func main() {
 	if cfg.Exec.Addr != "" {
 		logutil.Debug("exec server enabled at %s (tls: %v, max_conns: %d)", cfg.Exec.Addr, cfg.Exec.TLS, cfg.Exec.MaxConns)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logutil.Error("exec server panic: %v", r)
+				}
+			}()
 			if err := remote.ListenAndServeTLS(cfg.Exec.Addr, cfg.Exec.TLS, cfg.Exec.CertFile, cfg.Exec.KeyFile, cfg.Exec.MaxConns); err != nil {
 				logutil.Error("exec server: %v", err)
 			}

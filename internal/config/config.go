@@ -7,6 +7,9 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
+
+	"ztutor/internal/sandbox"
 )
 
 type Config struct {
@@ -43,6 +46,16 @@ type Config struct {
 	} `json:"db"`
 
 	CoursesDir string `json:"courses_dir"`
+
+	Sandbox struct {
+		MaxRuntimeSecs        int `json:"max_runtime_secs"`
+		MaxCompileRuntimeSecs int `json:"max_compile_runtime_secs"`
+		MaxMemoryMB           int `json:"max_memory_mb"`
+		MaxFileSizeMB         int `json:"max_file_size_mb"`
+		MaxOpenFiles          int `json:"max_open_files"`
+		MaxProcs              int `json:"max_procs"`
+		MaxCPUSecs            int `json:"max_cpu_secs"`
+	} `json:"sandbox"`
 
 	License struct {
 		File string `json:"file"`
@@ -85,6 +98,30 @@ func Load(path string) (Config, error) {
 		return cfg, err
 	}
 	return cfg, nil
+}
+
+func (cfg *Config) ApplySandboxLimits() {
+	if cfg.Sandbox.MaxRuntimeSecs > 0 {
+		sandbox.Limits.MaxRuntime = time.Duration(cfg.Sandbox.MaxRuntimeSecs) * time.Second
+	}
+	if cfg.Sandbox.MaxCompileRuntimeSecs > 0 {
+		sandbox.Limits.MaxCompileRuntime = time.Duration(cfg.Sandbox.MaxCompileRuntimeSecs) * time.Second
+	}
+	if cfg.Sandbox.MaxMemoryMB > 0 {
+		sandbox.Limits.MaxMemory = int64(cfg.Sandbox.MaxMemoryMB) * 1024 * 1024
+	}
+	if cfg.Sandbox.MaxFileSizeMB > 0 {
+		sandbox.Limits.MaxFileSize = uint64(cfg.Sandbox.MaxFileSizeMB) * 1024 * 1024
+	}
+	if cfg.Sandbox.MaxOpenFiles > 0 {
+		sandbox.Limits.MaxOpenFiles = uint64(cfg.Sandbox.MaxOpenFiles)
+	}
+	if cfg.Sandbox.MaxProcs > 0 {
+		sandbox.Limits.MaxProcs = uint64(cfg.Sandbox.MaxProcs)
+	}
+	if cfg.Sandbox.MaxCPUSecs > 0 {
+		sandbox.Limits.MaxCPUSeconds = uint64(cfg.Sandbox.MaxCPUSecs)
+	}
 }
 
 // detectUnknownKeys compares JSON keys against known struct field tags.

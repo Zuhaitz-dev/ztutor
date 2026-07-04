@@ -35,10 +35,10 @@ func setResourceLimits() []rlimitEntry {
 	)
 
 	limits := []rlimitEntry{
-		{syscall.RLIMIT_FSIZE, maxFileSize, maxFileSize, &oldFsize},
-		{syscall.RLIMIT_NOFILE, maxOpenFiles, maxOpenFiles, &oldNofile},
-		{unix.RLIMIT_NPROC, maxProcs, maxProcs, &oldNproc},
-		{syscall.RLIMIT_CPU, maxCPUSeconds, maxCPUSeconds, &oldCPU},
+		{syscall.RLIMIT_FSIZE, Limits.MaxFileSize, Limits.MaxFileSize, &oldFsize},
+		{syscall.RLIMIT_NOFILE, Limits.MaxOpenFiles, Limits.MaxOpenFiles, &oldNofile},
+		{unix.RLIMIT_NPROC, Limits.MaxProcs, Limits.MaxProcs, &oldNproc},
+		{syscall.RLIMIT_CPU, Limits.MaxCPUSeconds, Limits.MaxCPUSeconds, &oldCPU},
 		{syscall.RLIMIT_CORE, 0, 0, &oldCore},
 	}
 

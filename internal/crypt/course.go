@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"crypto/ed25519"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -271,5 +270,3 @@ func hexVal(c byte) (byte, bool) {
 		return 0, false
 	}
 }
-
-var _ = json.Marshal // suppress unused import; json is used in manifest.go

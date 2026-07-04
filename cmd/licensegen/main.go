@@ -43,8 +43,13 @@ func main() {
 			PublicKey:  fmt.Sprintf("%x", pub),
 			PrivateKey: fmt.Sprintf("%x", priv),
 		}
-		data, _ := json.MarshalIndent(kf, "", "  ")
-		os.WriteFile(*keyPairPath, data, 0600)
+		data, err := json.MarshalIndent(kf, "", "  ")
+		if err != nil {
+			logutil.Fatal("marshal key file: %v", err)
+		}
+		if err := os.WriteFile(*keyPairPath, data, 0600); err != nil {
+			logutil.Fatal("write key file: %v", err)
+		}
 		fmt.Printf("keys written to %s\n", *keyPairPath)
 		return
 	}
@@ -79,7 +84,10 @@ func main() {
 
 	var expiresAt string
 	if *expiresAfter != "" && *expiresAfter != "0" {
-		dur := parseDuration(*expiresAfter)
+		dur, err := parseDuration(*expiresAfter)
+		if err != nil {
+			logutil.Fatal("invalid --expires: %v", err)
+		}
 		if dur > 0 {
 			expiresAt = time.Now().Add(dur).Format(time.RFC3339)
 		}
@@ -114,8 +122,11 @@ func main() {
 		logutil.Fatal("sign: %v", err)
 	}
 
-	os.WriteFile("license_"+sanitize(*licensee)+".key", signed, 0644)
-	fmt.Printf("license written to license_%s.key\n", sanitize(*licensee))
+	filename := "license_" + sanitize(*licensee) + ".key"
+	if err := os.WriteFile(filename, signed, 0644); err != nil {
+		logutil.Fatal("write license file: %v", err)
+	}
+	fmt.Printf("license written to %s\n", filename)
 	fmt.Printf("licensee: %s\n", *licensee)
 	if *username != "" {
 		fmt.Printf("username: %s\n", *username)
@@ -161,20 +172,20 @@ func hexDecode(s string) ([]byte, error) {
 	return b, nil
 }
 
-func parseDuration(s string) time.Duration {
+func parseDuration(s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)
 	var v int
 	var unit string
 	fmt.Sscanf(s, "%d%s", &v, &unit)
 	switch unit {
 	case "y", "yr", "year", "years":
-		return time.Duration(v) * 365 * 24 * time.Hour
+		return time.Duration(v) * 365 * 24 * time.Hour, nil
 	case "mo", "month", "months":
-		return time.Duration(v) * 30 * 24 * time.Hour
+		return time.Duration(v) * 30 * 24 * time.Hour, nil
 	case "d", "day", "days":
-		return time.Duration(v) * 24 * time.Hour
+		return time.Duration(v) * 24 * time.Hour, nil
 	default:
-		return 0
+		return 0, fmt.Errorf("unknown unit %q in %q — use d (days), y (years), or mo (months)", unit, s)
 	}
 }
 

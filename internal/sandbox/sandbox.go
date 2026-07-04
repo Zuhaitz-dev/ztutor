@@ -13,15 +13,25 @@ import (
 	"time"
 )
 
-const (
-	maxRuntime        = 5 * time.Second
-	maxCompileRuntime = 30 * time.Second
-	maxMemory         = 128 * 1024 * 1024 // 128 MB
-	maxFileSize       = 8 * 1024 * 1024   // 8 MB
-	maxOpenFiles      = 64
-	maxProcs          = 8
-	maxCPUSeconds     = 10 // RLIMIT_CPU in seconds
-)
+var Limits = SandboxLimits{
+	MaxRuntime:        5 * time.Second,
+	MaxCompileRuntime: 30 * time.Second,
+	MaxMemory:         128 * 1024 * 1024, // 128 MB
+	MaxFileSize:       8 * 1024 * 1024,   // 8 MB
+	MaxOpenFiles:      64,
+	MaxProcs:          8,
+	MaxCPUSeconds:     10,
+}
+
+type SandboxLimits struct {
+	MaxRuntime        time.Duration
+	MaxCompileRuntime time.Duration
+	MaxMemory         int64
+	MaxFileSize       uint64
+	MaxOpenFiles      uint64
+	MaxProcs          uint64
+	MaxCPUSeconds     uint64
+}
 
 var canUseNamespaces bool
 
@@ -42,7 +52,7 @@ func formatExecuteResult(stdout, stderr, dir string, ctxErr error, execErr error
 	stderr = stripDir(stderr, dir)
 
 	if ctxErr != nil {
-		return &Result{Output: output, Stdout: stdout, Stderr: stderr, Error: fmt.Sprintf("program timed out (%s)", maxRuntime)}
+		return &Result{Output: output, Stdout: stdout, Stderr: stderr, Error: fmt.Sprintf("program timed out (%s)", Limits.MaxRuntime)}
 	}
 
 	if execErr != nil {

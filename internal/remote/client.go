@@ -12,6 +12,25 @@ import (
 	"ztutor/internal/sandbox"
 )
 
+const maxRetries = 3
+
+func backoff(attempt int) time.Duration {
+	return time.Duration(1<<uint(attempt)) * 250 * time.Millisecond
+}
+
+func retryOnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		return true
+	}
+	if opErr, ok := err.(*net.OpError); ok {
+		return opErr.Timeout() || opErr.Temporary()
+	}
+	return false
+}
+
 // Client implements sandbox.Executor by forwarding all calls to a remote
 // ztutord execution endpoint over TCP (one connection per request).
 type Client struct {
@@ -48,10 +67,18 @@ func (c *Client) call(req ExecRequest) (ExecResponse, error) {
 	var conn net.Conn
 	var err error
 	dialer := &net.Dialer{Timeout: 3 * time.Second}
-	if c.tls {
-		conn, err = tls.DialWithDialer(dialer, "tcp", c.addr, &tls.Config{MinVersion: tls.VersionTLS12})
-	} else {
-		conn, err = dialer.Dial("tcp", c.addr)
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if c.tls {
+			conn, err = tls.DialWithDialer(dialer, "tcp", c.addr, &tls.Config{MinVersion: tls.VersionTLS12})
+		} else {
+			conn, err = dialer.Dial("tcp", c.addr)
+		}
+		if err == nil || !retryOnError(err) {
+			break
+		}
+		logutil.Debug("remote exec: retry dial %s (attempt %d/%d): %v", c.addr, attempt+1, maxRetries, err)
+		time.Sleep(backoff(attempt))
 	}
 	if err != nil {
 		return ExecResponse{}, fmt.Errorf("remote exec: dial %s: %w", c.addr, err)
