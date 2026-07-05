@@ -325,22 +325,17 @@ func TestSignal_SIGFPE(t *testing.T) {
 		t.Skip("gcc not available")
 	}
 
-	// Integer division by zero causes SIGFPE on most platforms.
-	// In containerized CI environments the signal may only be visible
-	// via the exit code (128+signal) rather than Signaled() status.
-	code := `int main(void) { int x = 0; return 1 / x; }`
+	// raise(SIGFPE) guarantees a crash on every architecture; integer division
+	// by zero is undefined behaviour in C and does not trap on ARM64.
+	code := `#include <signal.h>
+int main(void) { raise(SIGFPE); return 0; }`
 
 	result, err := Run(cLang(), map[string]string{"main.c": code}, "", "", nil, nil)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if result.Error == "" && result.ExitCode == 0 {
-		t.Fatal("expected crash error for division by zero")
-	}
-	// When signal is detected via status.Signaled() the error contains "crashed".
-	// When it is only visible via exit code, there is no "crashed" prefix.
-	if result.Error != "" && !strings.Contains(result.Error, "crashed") {
-		t.Logf("error = %q, exit code = %d (signal visible via exit code only)", result.Error, result.ExitCode)
+		t.Fatal("expected crash error for SIGFPE")
 	}
 	if !strings.Contains(result.Error, "FPE") && !strings.Contains(result.Error, "8") && result.ExitCode != 136 {
 		t.Logf("SIGFPE: error=%q exit_code=%d", result.Error, result.ExitCode)
@@ -352,7 +347,8 @@ func TestSignal_SIGSEGV(t *testing.T) {
 		t.Skip("gcc not available")
 	}
 
-	code := `int main(void) { int *p = 0; return *p; }`
+	code := `#include <signal.h>
+int main(void) { raise(SIGSEGV); return 0; }`
 
 	result, err := Run(cLang(), map[string]string{"main.c": code}, "", "", nil, nil)
 	if err != nil {
@@ -371,7 +367,8 @@ func TestRunAllTests_Signal_SIGSEGV(t *testing.T) {
 		t.Skip("gcc not available")
 	}
 
-	code := `int main(void) { int *p = 0; return *p; }`
+	code := `#include <signal.h>
+int main(void) { raise(SIGSEGV); return 0; }`
 
 	tests := []TestInput{
 		{Expected: ""},
