@@ -603,12 +603,7 @@ func RunDebugger(command string, args []string) (writeFn func([]byte) error, eve
 	cmd.Stdin = slave
 	cmd.Stdout = slave
 	cmd.Stderr = slave
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:    true,
-		Setctty:   true,
-		Ctty:      0,
-		Pdeathsig: syscall.SIGKILL,
-	}
+	cmd.SysProcAttr = debuggerSysProcAttr()
 
 	if err := cmd.Start(); err != nil {
 		master.Close()

@@ -117,6 +117,8 @@ func interactiveSysProcAttr() *syscall.SysProcAttr {
 	}
 }
 
+func debuggerSysProcAttr() *syscall.SysProcAttr { return interactiveSysProcAttr() }
+
 func applyInteractiveIsolation(_ *exec.Cmd) func() {
 	return func() {}
 }

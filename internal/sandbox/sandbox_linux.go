@@ -139,6 +139,8 @@ func interactiveSysProcAttr() *syscall.SysProcAttr {
 	}
 }
 
+func debuggerSysProcAttr() *syscall.SysProcAttr { return interactiveSysProcAttr() }
+
 func applyInteractiveIsolation(cmd *exec.Cmd) func() {
 	if !canUseNamespaces {
 		return func() {}
