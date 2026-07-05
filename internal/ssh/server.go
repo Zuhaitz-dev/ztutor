@@ -261,9 +261,20 @@ func (s *Server) Close() error {
 
 // checkSetupToken validates the setup token with expiry and brute-force protection.
 // Locked out after 5 failed attempts; expires 24 h after the server binds.
+// Re-checks HasUsers under the lock to prevent TOCTOU race: an admin could be
+// created by a concurrent connection between the outer hasUsers check and this call.
 func (s *Server) checkSetupToken(candidate string) error {
 	s.tokenMu.Lock()
 	defer s.tokenMu.Unlock()
+
+	hasUsers, err := s.db.HasUsers()
+	if err != nil {
+		hasUsers = true // safe: require auth on error
+	}
+	if hasUsers {
+		return fmt.Errorf("setup token no longer valid — user accounts already exist")
+	}
+
 	if s.tokenAttempts >= 5 {
 		return fmt.Errorf("setup token locked after too many failed attempts — restart the server to reset")
 	}
@@ -402,7 +413,8 @@ func (s *Server) runGDBSession(channel gossh.Channel, requests <-chan *gossh.Req
 		return
 	}
 
-	gdbArgs := []string{"-q", "-iex", "set debuginfod enabled off"}
+	gdbArgs := []string{"-q", "-ex", "set debuginfod enabled off",
+		"-ex", "set confirm off"}
 	if len(build.RuntimeArgs) > 0 {
 		gdbArgs = append(gdbArgs, "--args", build.BinaryPath)
 		gdbArgs = append(gdbArgs, build.RuntimeArgs...)
@@ -544,83 +556,62 @@ func (s *Server) runTUI(channel gossh.Channel, requests <-chan *gossh.Request, u
 
 	lipgloss.SetColorProfile(colorProfileForTerm(termName))
 
-	// Loop: TUI → gdb session → TUI → ... until the user quits normally.
 	curCols, curRows := cols, rows
-	var resumeLesson *lesson.Lesson // non-nil after a gdb session: reopen that exercise
-	for {
-		var pendingGDB *sandbox.DebugBuild
-		var pendingLesson lesson.Lesson
 
-		app := s.tui.NewStudentApp(username, s.config.CoursesDir, s.config.LessonsDir, s.db,
-			s.config.License,
-			curCols, curRows,
-			s.config.Keymap,
-			func(build *sandbox.DebugBuild, l lesson.Lesson) {
-				pendingGDB = build
-				pendingLesson = l
-			},
-			resumeLesson,
-		)
+	app := s.tui.NewStudentApp(username, s.config.CoursesDir, s.config.LessonsDir, s.db,
+		s.config.License,
+		curCols, curRows,
+		s.config.Keymap,
+		nil,
+		nil,
+	)
 
-		p := tea.NewProgram(
-			app,
-			tea.WithInput(channel),
-			tea.WithOutput(channel),
-			tea.WithAltScreen(),
-			tea.WithoutCatchPanics(),
-		)
+	p := tea.NewProgram(
+		app,
+		tea.WithInput(channel),
+		tea.WithOutput(channel),
+		tea.WithAltScreen(),
+		tea.WithoutCatchPanics(),
+	)
 
-		// Window-change goroutine: forward SSH resize events to BubbleTea.
-		// Tracks the latest size so the restarted TUI gets correct dimensions.
-		ctx, cancel := context.WithCancel(context.Background())
-		goroutineDone := make(chan struct{})
-		go func() {
-			defer close(goroutineDone)
-			if curCols > 0 && curRows > 0 {
-				p.Send(tea.WindowSizeMsg{Width: curCols, Height: curRows})
-			}
-			for {
-				select {
-				case <-ctx.Done():
+	ctx, cancel := context.WithCancel(context.Background())
+	goroutineDone := make(chan struct{})
+	go func() {
+		defer close(goroutineDone)
+		if curCols > 0 && curRows > 0 {
+			p.Send(tea.WindowSizeMsg{Width: curCols, Height: curRows})
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case req, ok := <-requests:
+				if !ok {
+					cancel()
 					return
-				case req, ok := <-requests:
-					if !ok {
-						cancel()
-						return
-					}
-					if req.Type == "window-change" && len(req.Payload) >= 8 {
-						w := int(binary.BigEndian.Uint32(req.Payload[0:4]))
-						h := int(binary.BigEndian.Uint32(req.Payload[4:8]))
-						curCols, curRows = w, h
-						p.Send(tea.WindowSizeMsg{Width: w, Height: h})
-					}
-					if req.WantReply {
-						req.Reply(false, nil)
-					}
+				}
+				if req.Type == "window-change" && len(req.Payload) >= 8 {
+					w := int(binary.BigEndian.Uint32(req.Payload[0:4]))
+					h := int(binary.BigEndian.Uint32(req.Payload[4:8]))
+					curCols, curRows = w, h
+					p.Send(tea.WindowSizeMsg{Width: w, Height: h})
+				}
+				if req.WantReply {
+					req.Reply(false, nil)
 				}
 			}
-		}()
-
-		if _, err := p.Run(); err != nil {
-			logutil.Error("TUI run error: %v", err)
 		}
+	}()
 
-		// Stop the window-change goroutine before handing requests to gdb.
-		cancel()
-		<-goroutineDone
+	if _, err := p.Run(); err != nil {
+		logutil.Error("TUI run error: %v", err)
+	}
 
-		if sr, ok := app.(SessionResult); ok && sr.WantsRelaunch() {
-			s.runAdminTUI(channel, requests, username, curCols, curRows, termName)
-			break
-		}
+	cancel()
+	<-goroutineDone
 
-		if pendingGDB == nil {
-			break // normal quit (q / ctrl+c)
-		}
-
-		s.runGDBSession(channel, requests, pendingGDB, curCols, curRows)
-		pendingGDB.Close()
-		resumeLesson = &pendingLesson // restart directly at the exercise screen
+	if sr, ok := app.(SessionResult); ok && sr.WantsRelaunch() {
+		s.runAdminTUI(channel, requests, sr.RelaunchUser(), curCols, curRows, termName)
 	}
 }
 

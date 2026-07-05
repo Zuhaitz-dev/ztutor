@@ -165,6 +165,7 @@ exercise.mochi.exit_code: "El programa salió con código %d. Eso significa que 
 exercise.mochi.hint_used: "(%d pista(s) usada(s))"
 exercise.mochi.asan_start: "ASAN olfatea la memoria ahora: límites, tiempos de vida y comportamiento indefinido dejan huella."
 exercise.mochi.gdb_start: "Hora de GDB. Pon un breakpoint cerca de la duda, luego ve paso a paso hasta que las variables confiesen."
+exercise.mochi.gdb_exit: "GDB terminado. Esperemos que los bugs hayan confesado."
 
 # Pantalla de ejercicio — subtítulo y etiquetas de entrada
 exercise.subtitle: "Ejercicio: escribe tu solución a continuación."

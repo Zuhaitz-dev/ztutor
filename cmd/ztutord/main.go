@@ -144,20 +144,6 @@ func main() {
 		}
 	}
 
-	if cfg.Exec.Addr != "" {
-		logutil.Debug("exec server enabled at %s (tls: %v, max_conns: %d)", cfg.Exec.Addr, cfg.Exec.TLS, cfg.Exec.MaxConns)
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					logutil.Error("exec server panic: %v", r)
-				}
-			}()
-			if err := remote.ListenAndServeTLS(cfg.Exec.Addr, cfg.Exec.TLS, cfg.Exec.CertFile, cfg.Exec.KeyFile, cfg.Exec.MaxConns); err != nil {
-				logutil.Error("exec server: %v", err)
-			}
-		}()
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -169,6 +155,22 @@ func main() {
 		logutil.Info("received %s, shutting down...", sig)
 		cancel()
 	}()
+
+	if cfg.Exec.Addr != "" {
+		logutil.Debug("exec server enabled at %s (tls: %v, max_conns: %d)", cfg.Exec.Addr, cfg.Exec.TLS, cfg.Exec.MaxConns)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logutil.Error("exec server panic: %v", r)
+				}
+			}()
+			if err := remote.ListenAndServeTLSContext(ctx, cfg.Exec.Addr, cfg.Exec.TLS, cfg.Exec.CertFile, cfg.Exec.KeyFile, cfg.Exec.MaxConns); err != nil {
+				if ctx.Err() == nil {
+					logutil.Error("exec server: %v", err)
+				}
+			}
+		}()
+	}
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()

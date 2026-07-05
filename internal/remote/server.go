@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"context"
 	"crypto/subtle"
 	"crypto/tls"
 	"encoding/json"
@@ -23,6 +24,13 @@ func ListenAndServe(addr string) error {
 // ListenAndServeTLS starts a TCP (or TLS) listener. When tlsEnabled is true,
 // certFile and keyFile are required. maxConns caps concurrent connections (0 = unlimited).
 func ListenAndServeTLS(addr string, tlsEnabled bool, certFile, keyFile string, maxConns int) error {
+	return ListenAndServeTLSContext(context.Background(), addr, tlsEnabled, certFile, keyFile, maxConns)
+}
+
+// ListenAndServeTLSContext is like ListenAndServeTLS but accepts a context for
+// graceful shutdown. When ctx is cancelled, the listener is closed and the
+// function returns ctx.Err().
+func ListenAndServeTLSContext(ctx context.Context, addr string, tlsEnabled bool, certFile, keyFile string, maxConns int) error {
 	var ln net.Listener
 	var err error
 
@@ -46,6 +54,11 @@ func ListenAndServeTLS(addr string, tlsEnabled bool, certFile, keyFile string, m
 	logutil.Info("exec server listening on %s (tls: %v, auth: %v, max_conns: %d)",
 		addr, tlsEnabled, execToken != "", maxConns)
 
+	go func() {
+		<-ctx.Done()
+		ln.Close()
+	}()
+
 	var sem chan struct{}
 	if maxConns > 0 {
 		sem = make(chan struct{}, maxConns)
@@ -54,6 +67,10 @@ func ListenAndServeTLS(addr string, tlsEnabled bool, certFile, keyFile string, m
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
+			if ctx.Err() != nil {
+				logutil.Debug("exec server shutting down: %v", ctx.Err())
+				return ctx.Err()
+			}
 			return err
 		}
 		if sem != nil {
@@ -76,7 +93,7 @@ func handleConn(conn net.Conn) {
 	defer conn.Close()
 	dec := json.NewDecoder(conn)
 	enc := json.NewEncoder(conn)
-	remoteAddr := conn.RemoteAddr().String()
+	remoteAddr := logutil.SanitizeLog(conn.RemoteAddr().String())
 
 	var req ExecRequest
 	if err := dec.Decode(&req); err != nil {
@@ -84,19 +101,21 @@ func handleConn(conn net.Conn) {
 		enc.Encode(ExecResponse{Error: "decode: " + err.Error()}) //nolint:errcheck
 		return
 	}
-	logutil.Debug("exec request: remote=%s op=%s lang=%s files=%d", remoteAddr, req.Op, req.Lang, len(req.Files))
+	op := logutil.SanitizeLog(req.Op)
+	lang := logutil.SanitizeLog(req.Lang)
+	logutil.Debug("exec request: remote=%s op=%s lang=%s files=%d", remoteAddr, op, lang, len(req.Files))
 
 	if execToken != "" && subtle.ConstantTimeCompare([]byte(req.Token), []byte(execToken)) != 1 {
-		logutil.Debug("exec auth failed: remote=%s op=%s lang=%s", remoteAddr, req.Op, req.Lang)
+		logutil.Debug("exec auth failed: remote=%s op=%s lang=%s", remoteAddr, op, lang)
 		enc.Encode(ExecResponse{Error: "auth failed: invalid or missing token"}) //nolint:errcheck
 		return
 	}
 
 	resp := dispatch(req)
 	if resp.Error != "" {
-		logutil.Debug("exec response error: remote=%s op=%s lang=%s error=%s", remoteAddr, req.Op, req.Lang, resp.Error)
+		logutil.Debug("exec response error: remote=%s op=%s lang=%s error=%s", remoteAddr, op, lang, resp.Error)
 	} else {
-		logutil.Debug("exec response ok: remote=%s op=%s lang=%s", remoteAddr, req.Op, req.Lang)
+		logutil.Debug("exec response ok: remote=%s op=%s lang=%s", remoteAddr, op, lang)
 	}
 	enc.Encode(resp) //nolint:errcheck
 }

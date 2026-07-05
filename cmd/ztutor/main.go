@@ -6,11 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"ztutor/internal/db"
-	"ztutor/internal/lesson"
 	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 	"ztutor/internal/remote"
@@ -91,6 +89,8 @@ func main() {
 		logutil.Info("hybrid executor — remote at %s (tls: %v)", execAddr, useTLS)
 	}
 
+	sandbox.ApplyLimitsFromEnv()
+
 	if warnings := sandbox.HealthCheck(); len(warnings) > 0 {
 		logutil.Warn("sandbox toolchain issues detected:")
 		for _, w := range warnings {
@@ -116,46 +116,28 @@ func main() {
 		keymap = "default"
 	}
 
-	var resumeLesson *lesson.Lesson
-	for {
-		var pendingGDB *sandbox.DebugBuild
-		var pendingLesson lesson.Lesson
+	app := tui.NewApp(
+		username,
+		coursesDir,
+		lessonsDir,
+		database,
+		lic,
+		width, height,
+		keymap,
+		nil,
+		nil,
+	)
 
-		app := tui.NewApp(
-			username,
-			coursesDir,
-			lessonsDir,
-			database,
-			lic,
-			width, height,
-			keymap,
-			func(build *sandbox.DebugBuild, l lesson.Lesson) {
-				pendingGDB = build
-				pendingLesson = l
-			},
-			resumeLesson,
-		)
+	if _, err := tea.NewProgram(
+		app,
+		tea.WithAltScreen(),
+		tea.WithoutCatchPanics(),
+	).Run(); err != nil {
+		logutil.Error("tui: %v", err)
+	}
 
-		if _, err := tea.NewProgram(
-			app,
-			tea.WithAltScreen(),
-			tea.WithoutCatchPanics(),
-		).Run(); err != nil {
-			logutil.Error("tui: %v", err)
-		}
-
-		if app.LaunchAdmin {
-			fmt.Fprintln(os.Stderr, "admin dashboard is only available via ztutord")
-			break
-		}
-
-		if pendingGDB == nil {
-			break
-		}
-
-		runLocalGDB(pendingGDB)
-		pendingGDB.Close()
-		resumeLesson = &pendingLesson
+	if app.LaunchAdmin {
+		fmt.Fprintln(os.Stderr, "admin dashboard is only available via ztutord")
 	}
 }
 
@@ -215,28 +197,6 @@ func discoverLicenseFile(dataDir string) string {
 		}
 	}
 	return ""
-}
-
-func runLocalGDB(build *sandbox.DebugBuild) {
-	lang := sandbox.GetLanguage("c")
-	if lang == nil {
-		fmt.Fprintln(os.Stderr, "gdb: C toolchain not found")
-		return
-	}
-	args := []string{"-q", "-iex", "set debuginfod enabled off"}
-	if len(build.RuntimeArgs) > 0 {
-		args = append(args, "--args", build.BinaryPath)
-		args = append(args, build.RuntimeArgs...)
-	} else {
-		args = append(args, build.BinaryPath)
-	}
-	cmd := exec.Command(lang.DebuggerPath(), args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		logutil.Error("gdb: %v", err)
-	}
 }
 
 func currentUser() string {

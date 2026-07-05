@@ -333,6 +333,7 @@ exercise.mochi.compiler_wall_simple: "جدار المترجم. ابدأ بالخ
 exercise.mochi.crash: "رأى موتشي البرنامج ينهار. ابحث عن مؤشرات غير صالحة، فهارس مصفوفات خاطئة، أو ذاكرة محررة."
 exercise.mochi.exit_code: "خرج البرنامج بالكود %d. هذا يعني أنه ركض، ثم اختار نهاية غير سعيدة."
 exercise.mochi.gdb_start: "وقت GDB. ضع نقطة توقف قرب الشك، ثم تتبع حتى تعترف المتغيرات."
+exercise.mochi.gdb_exit: "انتهى GDB. نأمل أن البقّ قد اعترفت."
 exercise.mochi.hint: "التلميح %d على اللوحة. تعامل معه كسقالة: مفيد، مؤقت، وليس المبنى كله."
 exercise.mochi.hint_used: "(%d تلميح(ات) مستخدمة)"
 exercise.mochi.interactive: "الوضع التفاعلي هو stdin مباشر. اكتب كمستخدم، ثم شاهد أين ينتظر برنامجك."

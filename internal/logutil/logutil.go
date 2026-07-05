@@ -64,3 +64,17 @@ func fmsg(msg string, args ...any) string {
 	}
 	return fmt.Sprintf(msg, args...)
 }
+
+var logReplaceChars = strings.NewReplacer(
+	"\n", "\\n",
+	"\r", "\\r",
+	"\t", "\\t",
+	"\x00", "\\0",
+)
+
+// SanitizeLog scrubs user-controlled strings for safe inclusion in log messages.
+// Replaces newlines and control characters with escape sequences to prevent
+// log forgery, line-splitting attacks, and terminal escape injection.
+func SanitizeLog(s string) string {
+	return logReplaceChars.Replace(s)
+}

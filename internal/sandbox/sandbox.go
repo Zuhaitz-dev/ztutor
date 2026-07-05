@@ -8,9 +8,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	"ztutor/internal/logutil"
 )
 
 var Limits = SandboxLimits{
@@ -37,6 +40,44 @@ var canUseNamespaces bool
 
 func init() {
 	canUseNamespaces = probeNamespaces()
+}
+
+func ApplyLimitsFromEnv() {
+	if v := os.Getenv("ZTUTOR_SANDBOX_MAX_RUNTIME_SECS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			Limits.MaxRuntime = time.Duration(n) * time.Second
+		}
+	}
+	if v := os.Getenv("ZTUTOR_SANDBOX_MAX_COMPILE_RUNTIME_SECS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			Limits.MaxCompileRuntime = time.Duration(n) * time.Second
+		}
+	}
+	if v := os.Getenv("ZTUTOR_SANDBOX_MAX_MEMORY_MB"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			Limits.MaxMemory = int64(n) * 1024 * 1024
+		}
+	}
+	if v := os.Getenv("ZTUTOR_SANDBOX_MAX_FILE_SIZE_MB"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			Limits.MaxFileSize = uint64(n) * 1024 * 1024
+		}
+	}
+	if v := os.Getenv("ZTUTOR_SANDBOX_MAX_OPEN_FILES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			Limits.MaxOpenFiles = uint64(n)
+		}
+	}
+	if v := os.Getenv("ZTUTOR_SANDBOX_MAX_PROCS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			Limits.MaxProcs = uint64(n)
+		}
+	}
+	if v := os.Getenv("ZTUTOR_SANDBOX_MAX_CPU_SECS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			Limits.MaxCPUSeconds = uint64(n)
+		}
+	}
 }
 
 func formatExecuteResult(stdout, stderr, dir string, ctxErr error, execErr error) *Result {
@@ -170,7 +211,21 @@ func safeWritePath(dir, name string) (string, error) {
 
 // writeFiles writes the contents of files to dir, creating subdirectories as needed.
 // Rejects filenames containing "..", absolute paths, or paths that escape dir.
+// Enforces a total payload limit (10 MB) and file count limit (100) to prevent DoS.
+const maxTotalFiles = 100
+const maxTotalBytes = 10 * 1024 * 1024
+
 func writeFiles(dir string, files map[string]string) error {
+	if len(files) > maxTotalFiles {
+		return fmt.Errorf("too many files: %d (max %d)", len(files), maxTotalFiles)
+	}
+	var totalBytes int
+	for _, content := range files {
+		totalBytes += len(content)
+		if totalBytes > maxTotalBytes {
+			return fmt.Errorf("total file size exceeds limit of %d MB", maxTotalBytes/(1024*1024))
+		}
+	}
 	for name, content := range files {
 		p, err := safeWritePath(dir, name)
 		if err != nil {
@@ -209,7 +264,9 @@ func ensureProg(dir string) {
 			continue
 		}
 		if info.Mode().IsRegular() && info.Mode()&0111 != 0 {
-			os.Rename(filepath.Join(dir, e.Name()), progPath)
+			if err := os.Rename(filepath.Join(dir, e.Name()), progPath); err != nil {
+				logutil.Warn("sandbox: ensureProg rename %s: %v", e.Name(), err)
+			}
 			return
 		}
 	}
@@ -218,7 +275,7 @@ func ensureProg(dir string) {
 // runBuildCmd executes a build command (e.g. "make") in dir.
 // Non-empty Result.Error means the build failed.
 func runBuildCmd(dir, buildCmd string) *Result {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), Limits.MaxCompileRuntime)
 	defer cancel()
 	parts := strings.Fields(buildCmd)
 	if len(parts) == 0 {
@@ -231,7 +288,7 @@ func runBuildCmd(dir, buildCmd string) *Result {
 	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
-			return &Result{Error: fmt.Sprintf("build timed out (%s)", 30*time.Second)}
+			return &Result{Error: fmt.Sprintf("build timed out (%s)", Limits.MaxCompileRuntime)}
 		}
 		out := buf.String()
 		if out == "" {
@@ -531,14 +588,90 @@ func RunInteractive(command string, args []string) (writeFn func([]byte) error, 
 	return writeFn, ch, kill, nil
 }
 
+// RunDebugger launches a debugger (e.g. GDB) connected to a PTY for
+// interactive use inside the TUI. Unlike RunInteractive, it does NOT apply
+// sandbox isolation — the debugger needs full filesystem access for shared
+// libraries, source files, and symbol resolution.
+func RunDebugger(command string, args []string) (writeFn func([]byte) error, events <-chan InteractiveEvent, kill func(), err error) {
+	master, slave, err := openInteractivePTY()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer slave.Close()
+
+	cmd := exec.Command(command, args...)
+	cmd.Stdin = slave
+	cmd.Stdout = slave
+	cmd.Stderr = slave
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid:    true,
+		Setctty:   true,
+		Ctty:      0,
+		Pdeathsig: syscall.SIGKILL,
+	}
+
+	if err := cmd.Start(); err != nil {
+		master.Close()
+		return nil, nil, nil, fmt.Errorf("start debugger: %w", err)
+	}
+
+	ch := make(chan InteractiveEvent, 64)
+	closeMaster := true
+	defer func() {
+		if closeMaster {
+			master.Close()
+		}
+	}()
+
+	go func() {
+		defer master.Close()
+		defer close(ch)
+
+		buf := make([]byte, 512)
+		for {
+			n, err := master.Read(buf)
+			if n > 0 {
+				text := strings.ReplaceAll(string(buf[:n]), "\r\n", "\n")
+				text = strings.ReplaceAll(text, "\r", "")
+				ch <- InteractiveEvent{Text: text}
+			}
+			if err != nil {
+				break
+			}
+		}
+
+		exitCode := 0
+		if err := cmd.Wait(); err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			}
+		}
+		ch <- InteractiveEvent{Done: true, Code: exitCode}
+	}()
+
+	closeMaster = false
+	writeFn = func(data []byte) error {
+		_, err := master.Write(data)
+		return err
+	}
+	kill = func() {
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+	}
+	return writeFn, ch, kill, nil
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // sandboxEnv returns a minimal environment for the sandboxed child process.
-// Only safe variables (PATH, HOME set to the sandbox dir, TMPDIR, LANG) are
+// Only safe variables (curated PATH, HOME set to the sandbox dir, TMPDIR, LANG) are
 // passed; the parent's secrets, AWS keys, XDG variables, etc. are scrubbed.
+// The PATH is a fixed whitelist — compilers are resolved to absolute paths at
+// registration time, so the sandbox needs no host-specific PATH additions.
 func sandboxEnv(dir string, extraEnv []string) []string {
 	env := []string{
-		"PATH=" + os.Getenv("PATH"),
+		"PATH=/usr/local/bin:/usr/bin:/bin",
 		"HOME=" + dir,
 		"TMPDIR=" + dir,
 		"TEMP=" + dir,

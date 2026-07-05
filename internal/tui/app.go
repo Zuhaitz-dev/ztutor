@@ -558,10 +558,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case launchGDBMsg:
-		if a.launchGDB != nil {
-			a.launchGDB(msg.build, msg.lesson)
-		}
-		return a, tea.Quit
+		return a, nil
 	}
 
 	if a.current != nil {

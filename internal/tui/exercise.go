@@ -54,6 +54,14 @@ type asmResultMsg struct {
 	err error
 }
 
+type runMode int
+
+const (
+	runModeNone        runMode = iota
+	runModeInteractive         // Ctrl+E: textinput-based interactive mode
+	runModeGDB                 // Ctrl+G: raw key forwarding to GDB
+)
+
 type ExerciseScreen struct {
 	lesson   lesson.Lesson
 	lang     sandbox.Language
@@ -90,6 +98,7 @@ type ExerciseScreen struct {
 	passed           bool
 
 	running       bool
+	runMode       runMode
 	interWrite    func([]byte) error
 	interKill     func()
 	interCh       <-chan sandbox.InteractiveEvent
@@ -340,30 +349,80 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if es.running {
-			switch msg.String() {
-			case KeyQuit:
-				if es.interKill != nil {
-					es.interKill()
+			switch es.runMode {
+			case runModeGDB:
+				s := msg.String()
+				if s == KeyBackEditor || s == KeyQuit {
+					if es.interKill != nil {
+						es.interKill()
+					}
+					if es.compositor.InFullscreen() {
+						es.compositor.ExitFullscreen()
+					}
+					return es, backCmd(NavigateBackToCourse{})
 				}
-			case KeyBackEditor:
-				if es.interKill != nil {
-					es.interKill()
+				if s == KeyGdb {
+					if es.compositor.InFullscreen() && es.compositor.FullscreenID() == WidgetOutput {
+						es.compositor.ExitFullscreen()
+					} else {
+						es.compositor.EnterFullscreen(WidgetOutput)
+					}
+					return es, nil
 				}
-				return es, backCmd(NavigateBackToCourse{})
-			case KeySelect:
-				line := es.runInput.Value()
-				if es.interWrite != nil {
-					if err := es.interWrite([]byte(line + "\n")); err != nil {
-						logutil.Error("exercise: interactive write: %v", err)
+				switch msg.Type {
+				case tea.KeyRunes:
+					for _, r := range msg.Runes {
+						es.interWrite([]byte(string(r)))
+					}
+				case tea.KeySpace:
+					es.interWrite([]byte(" "))
+				case tea.KeyEnter:
+					es.interWrite([]byte("\n"))
+				case tea.KeyTab:
+					es.interWrite([]byte("\t"))
+				case tea.KeyBackspace:
+					es.interWrite([]byte("\x7f"))
+				case tea.KeyCtrlC:
+					es.interWrite([]byte("\x03"))
+				case tea.KeyCtrlD:
+					es.interWrite([]byte("\x04"))
+				case tea.KeyEscape:
+					es.interWrite([]byte("\x1b"))
+				case tea.KeyUp, tea.KeyDown, tea.KeyLeft, tea.KeyRight:
+					seq := arrowSeq(msg.Type)
+					if seq != "" {
+						es.interWrite([]byte(seq))
 					}
 				}
-				es.liveOutput += "» " + line + "\n"
-				es.output.SetContent(es.liveOutput)
-				es.runInput.Reset()
-			default:
-				var cmd tea.Cmd
-				es.runInput, cmd = es.runInput.Update(msg)
-				return es, cmd
+				return es, nil
+
+			case runModeInteractive:
+				switch msg.String() {
+				case KeyQuit:
+					if es.interKill != nil {
+						es.interKill()
+					}
+				case KeyBackEditor:
+					if es.interKill != nil {
+						es.interKill()
+					}
+					return es, backCmd(NavigateBackToCourse{})
+				case KeySelect:
+					line := es.runInput.Value()
+					if es.interWrite != nil {
+						if err := es.interWrite([]byte(line + "\n")); err != nil {
+							logutil.Error("exercise: interactive write: %v", err)
+						}
+					}
+					es.liveOutput += "» " + line + "\n"
+					es.output.SetContent(es.liveOutput)
+					es.runInput.Reset()
+				default:
+					var cmd tea.Cmd
+					es.runInput, cmd = es.runInput.Update(msg)
+					return es, cmd
+				}
+				return es, nil
 			}
 			return es, nil
 		}
@@ -748,10 +807,42 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			es.output.SetContent(exErrorStyle.Render(msg.compileErr.Error))
 			return es, nil
 		}
-		msg.build.RuntimeArgs = parseFlags(es.args.Value())
-		launchCmd := backCmd(launchGDBMsg{build: msg.build, lesson: es.lesson})
+		runtimeArgs := parseFlags(es.args.Value())
+		if es.lang == nil || !es.lang.HasDebugger() {
+			msg.build.Close()
+			es.output.SetContent(exErrorStyle.Render("debugger not available"))
+			return es, nil
+		}
+		gdbArgs := []string{"-q",
+			"-ex", "set debuginfod enabled off",
+			"-ex", "set confirm off"}
+		if len(runtimeArgs) > 0 {
+			gdbArgs = append(gdbArgs, "--args", msg.build.BinaryPath)
+			gdbArgs = append(gdbArgs, runtimeArgs...)
+		} else {
+			gdbArgs = append(gdbArgs, msg.build.BinaryPath)
+		}
+		writeFn, ch, kill, err := sandbox.RunDebugger(es.lang.DebuggerPath(), gdbArgs)
+		if err != nil {
+			msg.build.Close()
+			es.output.SetContent(exErrorStyle.Render(err.Error()))
+			return es, nil
+		}
+		es.running = true
+		es.runMode = runModeGDB
+		es.compositor.SetRunning(true)
+		es.compositor.EnterFullscreen(WidgetOutput)
+		es.interWrite = writeFn
+		es.interKill = kill
+		es.interCh = ch
+		es.interBuild = msg.build
+		es.liveOutput = ""
+		es.programOutput = ""
+		es.output.SetContent("")
+		es.tests.Clear()
+		es.editor.Blur()
 		achCmd := backCmd(achievementEventMsg{events: []string{"gdb"}})
-		return es, tea.Batch(launchCmd, achCmd)
+		return es, tea.Batch(waitForInteractive(ch), achCmd)
 
 	case interactiveReadyMsg:
 		es.compiling = false
@@ -781,6 +872,7 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return es, nil
 		}
 		es.running = true
+		es.runMode = runModeInteractive
 		es.interWrite = writeFn
 		es.interKill = kill
 		es.interCh = ch
@@ -802,7 +894,10 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return es, waitForInteractive(es.interCh)
 
 	case programDoneMsg:
+		wasGDB := es.runMode == runModeGDB
 		es.running = false
+		es.runMode = runModeNone
+		es.compositor.SetRunning(false)
 		es.interWrite = nil
 		es.interKill = nil
 		if es.interBuild != nil {
@@ -811,6 +906,11 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		es.runInput.Blur()
 		es.compositor.FocusEditor()
+		if wasGDB {
+			es.compositor.ExitFullscreen()
+			es.mascot.Speak(es.loc.T("exercise.mochi.gdb_exit"), MoodHappy)
+			return es, nil
+		}
 		if msg.code != 0 {
 			es.passed = false
 			es.earnedStars = 0
@@ -1685,5 +1785,20 @@ func waitForInteractive(ch <-chan sandbox.InteractiveEvent) tea.Cmd {
 			return programDoneMsg{code: ev.Code}
 		}
 		return programOutputMsg{text: ev.Text}
+	}
+}
+
+func arrowSeq(key tea.KeyType) string {
+	switch key {
+	case tea.KeyUp:
+		return "\x1b[A"
+	case tea.KeyDown:
+		return "\x1b[B"
+	case tea.KeyRight:
+		return "\x1b[C"
+	case tea.KeyLeft:
+		return "\x1b[D"
+	default:
+		return ""
 	}
 }

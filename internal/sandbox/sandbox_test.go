@@ -4,6 +4,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 func cLang() Language {
@@ -314,5 +315,59 @@ func TestGetLanguage(t *testing.T) {
 	}
 	if lang.Name() != "c" {
 		t.Errorf("Name() = %q, want 'c'", lang.Name())
+	}
+}
+
+func TestRunDebugger_ProcessLifecycle(t *testing.T) {
+	if _, err := exec.LookPath("cat"); err != nil {
+		t.Skip("cat not available")
+	}
+
+	writeFn, events, kill, err := RunDebugger("cat", nil)
+	if err != nil {
+		t.Fatalf("RunDebugger: %v", err)
+	}
+	defer func() {
+		if kill != nil {
+			kill()
+		}
+	}()
+
+	if writeFn == nil {
+		t.Fatal("writeFn is nil")
+	}
+
+	if err := writeFn([]byte("hello\n")); err != nil {
+		t.Fatalf("writeFn: %v", err)
+	}
+
+	select {
+	case ev, ok := <-events:
+		if !ok {
+			t.Error("events channel closed unexpectedly")
+		}
+		if !strings.Contains(ev.Text, "hello") {
+			t.Errorf("expected output to contain 'hello', got %q", ev.Text)
+		}
+		if ev.Done {
+			t.Error("expected not done yet")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for output")
+	}
+
+	kill()
+
+	select {
+	case ev, ok := <-events:
+		if ok && ev.Done {
+			// Success: process ended and sent done.
+		} else if !ok {
+			t.Error("events channel closed without done event")
+		} else {
+			t.Error("expected done event after kill")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for done event after kill")
 	}
 }

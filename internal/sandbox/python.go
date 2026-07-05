@@ -153,7 +153,7 @@ func pythonDebugBuild(dir, srcPath string, flags []string, compiler string) (*De
 
 func rustCompile(dir, srcPath string, flags []string, compiler string) *Result {
 	outPath := filepath.Join(dir, "prog")
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), Limits.MaxCompileRuntime)
 	defer cancel()
 
 	args := []string{"-C", "opt-level=0"}

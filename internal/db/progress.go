@@ -303,13 +303,17 @@ func (db *DB) HasUsers() (bool, error) {
 
 func GenerateSetupToken() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		logutil.Fatal("generate setup token: %v", err)
+	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func GenerateStudentPassword() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		logutil.Fatal("generate student password: %v", err)
+	}
 	return base64.RawURLEncoding.EncodeToString(b)[:10]
 }
 
