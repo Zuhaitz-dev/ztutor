@@ -325,10 +325,15 @@ func TestSignal_SIGFPE(t *testing.T) {
 		t.Skip("gcc not available")
 	}
 
-	// raise(SIGFPE) guarantees a crash on every architecture; integer division
-	// by zero is undefined behaviour in C and does not trap on ARM64.
+	// CLONE_NEWPID makes the sandboxed process PID 1 inside the namespace.
+	// PID 1 ignores unhandled signals by kernel policy, so we must install a
+	// handler that calls _exit(128+sig) to ensure the process actually dies
+	// and the sandbox can detect the crash.
 	code := `#include <signal.h>
-int main(void) { raise(SIGFPE); return 0; }`
+#include <stdlib.h>
+#include <unistd.h>
+void handler(int sig) { _exit(128 + sig); }
+int main(void) { signal(SIGFPE, handler); raise(SIGFPE); return 0; }`
 
 	result, err := Run(cLang(), map[string]string{"main.c": code}, "", "", nil, nil)
 	if err != nil {
@@ -348,7 +353,10 @@ func TestSignal_SIGSEGV(t *testing.T) {
 	}
 
 	code := `#include <signal.h>
-int main(void) { raise(SIGSEGV); return 0; }`
+#include <stdlib.h>
+#include <unistd.h>
+void handler(int sig) { _exit(128 + sig); }
+int main(void) { signal(SIGSEGV, handler); raise(SIGSEGV); return 0; }`
 
 	result, err := Run(cLang(), map[string]string{"main.c": code}, "", "", nil, nil)
 	if err != nil {
@@ -368,7 +376,10 @@ func TestRunAllTests_Signal_SIGSEGV(t *testing.T) {
 	}
 
 	code := `#include <signal.h>
-int main(void) { raise(SIGSEGV); return 0; }`
+#include <stdlib.h>
+#include <unistd.h>
+void handler(int sig) { _exit(128 + sig); }
+int main(void) { signal(SIGSEGV, handler); raise(SIGSEGV); return 0; }`
 
 	tests := []TestInput{
 		{Expected: ""},
