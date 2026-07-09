@@ -51,8 +51,8 @@
 #  define INT8_TYPE signed char
 # endif
 #endif
-typedef sqlite_int64 i64;          /* 8-byte signed integer */
-typedef sqlite_uint64 u64;         /* 8-byte unsigned integer */
+typedef int64_t i64;          /* 8-byte signed integer */
+typedef uint64_t u64;         /* 8-byte unsigned integer */
 typedef UINT32_TYPE u32;           /* 4-byte unsigned integer */
 typedef UINT16_TYPE u16;           /* 2-byte unsigned integer */
 typedef INT16_TYPE i16;            /* 2-byte signed integer */
