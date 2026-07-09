@@ -14,7 +14,6 @@ import (
 
 	"ztutor/internal/config"
 	"ztutor/internal/db"
-	"ztutor/internal/lesson"
 	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 	"ztutor/internal/remote"
@@ -125,8 +124,8 @@ func main() {
 		SetupToken:       setupToken,
 		MaxConns:         cfg.SSH.MaxConns,
 	}, &ssh.TUIProvider{
-		NewStudentApp: func(username, coursesDir, lessonsDir string, db *db.DB, license *license.State, width, height int, keymap string, launchGDB func(*sandbox.DebugBuild, lesson.Lesson), startLesson *lesson.Lesson) tea.Model {
-			return tui.NewApp(username, coursesDir, lessonsDir, db, license, width, height, keymap, launchGDB, startLesson)
+		NewStudentApp: func(username, coursesDir, lessonsDir string, db *db.DB, license *license.State, width, height int, keymap string) tea.Model {
+			return tui.NewApp(username, coursesDir, lessonsDir, db, license, width, height, keymap)
 		},
 		NewAdminApp: func(username string, db *db.DB, license *license.State, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
 			return tui.NewAdminApp(username, db, license, lessonsDir, coursesDir, achievementsFile, width, height)
@@ -241,7 +240,7 @@ func runLocalControl(srv *ssh.Server, dbPath string, lic *license.State, lessons
 			}
 			showAdmin = false
 		} else {
-			app := tui.NewApp(username, coursesDir, lessonsDir, localDB, lic, width, height, keymap, nil, nil)
+			app := tui.NewApp(username, coursesDir, lessonsDir, localDB, lic, width, height, keymap)
 			if _, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
 				logutil.Error("local student TUI: %v", err)
 				return

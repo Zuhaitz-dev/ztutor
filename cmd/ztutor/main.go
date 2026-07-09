@@ -124,8 +124,6 @@ func main() {
 		lic,
 		width, height,
 		keymap,
-		nil,
-		nil,
 	)
 
 	if _, err := tea.NewProgram(

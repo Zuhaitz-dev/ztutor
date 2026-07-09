@@ -71,13 +71,7 @@ func dirArrow(rtl bool) string {
 	return "▸ "
 }
 
-// launchGDBMsg is sent by ExerciseScreen when the user wants to start a gdb
-// session. The App forwards it to the server layer, then quits so the SSH
-// handler can run gdb directly with a real PTY.
-type launchGDBMsg struct {
-	build  *sandbox.DebugBuild
-	lesson lesson.Lesson
-}
+// launchGDBMsg is no longer used — GDB runs inside the TUI now.
 
 // achievementEventMsg carries a list of event strings that may unlock achievements.
 type achievementEventMsg struct{ events []string }
@@ -150,9 +144,8 @@ type App struct {
 	activeCourseID       string         // current course context for returning from lesson/exercise screens
 	activeCourseNodeID   string         // preferred lesson/node selection when reopening a course
 
-	current   tea.Model
-	launchGDB func(*sandbox.DebugBuild, lesson.Lesson)
-	gamepad   *NativeGamepad
+	current tea.Model
+	gamepad *NativeGamepad
 
 	sized
 	mascotFrame int
@@ -160,7 +153,7 @@ type App struct {
 	LaunchAdmin bool
 }
 
-func NewApp(username, coursesDir, lessonsDir string, database *db.DB, lic *license.State, width, height int, serverKeymap string, launchGDB func(*sandbox.DebugBuild, lesson.Lesson), startLesson *lesson.Lesson) *App {
+func NewApp(username, coursesDir, lessonsDir string, database *db.DB, lic *license.State, width, height int, serverKeymap string) *App {
 	keymap, _ := database.GetUserSetting(username, "keymap")
 	if keymap == "" {
 		keymap = serverKeymap
@@ -178,7 +171,6 @@ func NewApp(username, coursesDir, lessonsDir string, database *db.DB, lic *licen
 		lic:        lic,
 		sized:      sized{Width: width, Height: height},
 		keymap:     keymap,
-		launchGDB:  launchGDB,
 		langCache:  make(map[string]sandbox.Language),
 		executor:   sandbox.DefaultExecutor(),
 		uiLang:     uiLang,
@@ -197,17 +189,10 @@ func NewApp(username, coursesDir, lessonsDir string, database *db.DB, lic *licen
 	app.loadProgress()
 	app.streak = database.UpdateStreak(username)
 
-	if startLesson != nil {
-		es := NewExerciseScreen(*startLesson, app.resolveLanguage(startLesson), app.executor, width, height, keymap, app.progress[startLesson.ID], app.streak, app.loc, true, true)
-		es.SetHasGamepad(app.gamepad != nil)
-		app.current = es
-		app.applyMascotFrame()
-	} else {
-		introSeen, _ := database.GetUserSetting(username, "intro_seen")
-		seenIntro := introSeen == "1"
-		app.current = NewIntroScreen(width, height, seenIntro, app.loc)
-		app.applyMascotFrame()
-	}
+	introSeen, _ := database.GetUserSetting(username, "intro_seen")
+	seenIntro := introSeen == "1"
+	app.current = NewIntroScreen(width, height, seenIntro, app.loc)
+	app.applyMascotFrame()
 
 	return app
 }
@@ -244,6 +229,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// save to DB here first to close the race.
 	if km, ok := msg.(tea.KeyMsg); ok && km.String() == KeyLanguage {
 		next := a.loc.Next()
+		logutil.Debug("lang: switching from %s to %s (user=%s)", a.loc.Lang(), next.Lang(), a.username)
 		if err := a.db.SetUserSetting(a.username, "lang", next.Lang()); err != nil {
 			logutil.Warn("failed to save lang for %s: %v", a.username, err)
 		}
@@ -557,8 +543,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.grantAchievements(msg.events)
 		return a, nil
 
-	case launchGDBMsg:
-		return a, nil
 	}
 
 	if a.current != nil {

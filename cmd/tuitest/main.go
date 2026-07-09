@@ -38,7 +38,7 @@ func main() {
 	}
 	defer dbase.Close()
 
-	app := tui.NewApp("tester", coursesDir, "", dbase, nil, 80, 24, "default", nil, nil)
+	app := tui.NewApp("tester", coursesDir, "", dbase, nil, 80, 24, "default")
 	p := tea.NewProgram(app, tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout))
 	if _, err := p.Run(); err != nil {
 		fmt.Println("tui error:", err)

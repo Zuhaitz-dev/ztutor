@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 	"time"
 
@@ -103,6 +104,7 @@ type ExerciseScreen struct {
 	interKill     func()
 	interCh       <-chan sandbox.InteractiveEvent
 	interBuild    *sandbox.DebugBuild
+	gdbInitPath   string // temp gdb init file, cleaned up on GDB exit
 	runInput      textinput.Model
 	liveOutput    string
 	programOutput string
@@ -359,6 +361,8 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if es.compositor.InFullscreen() {
 						es.compositor.ExitFullscreen()
 					}
+					os.Remove(es.gdbInitPath)
+					es.gdbInitPath = ""
 					return es, backCmd(NavigateBackToCourse{})
 				}
 				if s == KeyGdb {
@@ -813,9 +817,22 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			es.output.SetContent(exErrorStyle.Render("debugger not available"))
 			return es, nil
 		}
+		gdbInitFile, err := os.CreateTemp("", "ztutor-gdbinit-*")
+		if err != nil {
+			msg.build.Close()
+			es.output.SetContent(exErrorStyle.Render("create gdb init: " + err.Error()))
+			return es, nil
+		}
+		gdbInitPath := gdbInitFile.Name()
+		gdbInitFile.WriteString("define shell\n")
+		gdbInitFile.WriteString("printf \"The shell command is disabled in the ztutor sandbox.\\n\"\n")
+		gdbInitFile.WriteString("end\n")
+		gdbInitFile.Close()
+		es.gdbInitPath = gdbInitPath
 		gdbArgs := []string{"-q",
 			"-ex", "set debuginfod enabled off",
-			"-ex", "set confirm off"}
+			"-ex", "set confirm off",
+			"-x", gdbInitPath}
 		if len(runtimeArgs) > 0 {
 			gdbArgs = append(gdbArgs, "--args", msg.build.BinaryPath)
 			gdbArgs = append(gdbArgs, runtimeArgs...)
@@ -888,8 +905,12 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return es, tea.Batch(waitForInteractive(ch), achCmd)
 
 	case programOutputMsg:
-		es.programOutput += msg.text
-		es.liveOutput += msg.text
+		text := msg.text
+		if es.runMode == runModeGDB {
+			text = stripANSI(text)
+		}
+		es.programOutput += text
+		es.liveOutput += text
 		es.output.SetContent(es.liveOutput)
 		return es, waitForInteractive(es.interCh)
 
@@ -908,6 +929,8 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		es.compositor.FocusEditor()
 		if wasGDB {
 			es.compositor.ExitFullscreen()
+			os.Remove(es.gdbInitPath)
+			es.gdbInitPath = ""
 			es.mascot.Speak(es.loc.T("exercise.mochi.gdb_exit"), MoodHappy)
 			return es, nil
 		}

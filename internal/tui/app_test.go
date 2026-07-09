@@ -22,7 +22,7 @@ func TestAppLanguageChangeStaysOnLicenseEntry(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.Update(NavigateToLicenseEntry{})
 	if _, ok := app.current.(*licenseEntryScreen); !ok {
 		t.Fatalf("current = %T, want *licenseEntryScreen", app.current)
@@ -40,12 +40,64 @@ func TestAppLanguageChangeStaysOnLicenseEntry(t *testing.T) {
 	}
 }
 
+func TestAppLanguageChange_PersistsToDB(t *testing.T) {
+	database := testDB(t)
+	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	// Start with English.
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
+	if app.loc.Lang() != "en" {
+		t.Fatalf("initial lang = %q, want en", app.loc.Lang())
+	}
+
+	// Simulate Ctrl+L to switch to Spanish.
+	app.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+
+	// Navigate to license entry screen so we can read the locale.
+	app.Update(NavigateToLicenseEntry{})
+	screen, ok := app.current.(*licenseEntryScreen)
+	if !ok {
+		t.Fatalf("current = %T, want *licenseEntryScreen", app.current)
+	}
+	if screen.loc.Lang() != "es" {
+		t.Fatalf("lang after Ctrl+L = %q, want es", screen.loc.Lang())
+	}
+
+	// Verify DB persistence.
+	savedLang, err := database.GetUserSetting("alice", "lang")
+	if err != nil {
+		t.Fatalf("GetUserSetting lang: %v", err)
+	}
+	if savedLang != "es" {
+		t.Errorf("DB lang = %q, want es", savedLang)
+	}
+
+	// A new App should start with the saved language.
+	app2 := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
+	if app2.loc.Lang() != "es" {
+		t.Errorf("new app lang = %q, want es (persisted)", app2.loc.Lang())
+	}
+
+	// Another Ctrl+L should switch to zh.
+	app2.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	if app2.loc.Lang() != "zh" {
+		t.Errorf("lang after second Ctrl+L = %q, want zh", app2.loc.Lang())
+	}
+
+	savedLang2, _ := database.GetUserSetting("alice", "lang")
+	if savedLang2 != "zh" {
+		t.Errorf("DB lang after second Ctrl+L = %q, want zh", savedLang2)
+	}
+}
+
 func TestAppNewUser_StartsOnIntroScreen(t *testing.T) {
 	database := testDB(t)
 	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	if _, ok := app.current.(*IntroScreen); !ok {
 		t.Fatalf("new user should start on IntroScreen, got %T", app.current)
 	}
@@ -56,7 +108,7 @@ func TestAppIntroComplete_GoesToConnectChoice(t *testing.T) {
 	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.Update(introCompleteMsg{})
 	if _, ok := app.current.(*connectChoiceScreen); !ok {
 		t.Fatalf("after main intro complete, should be on connectChoiceScreen, got %T", app.current)
@@ -85,7 +137,7 @@ func TestAppNavigateToLicenseSummary_ShowsSummary(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 	lic := &license.State{Licensed: true, Licensee: "Acme"}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, lic, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, lic, 80, 24, "default")
 
 	app.Update(NavigateToLicenseSummary{})
 	if _, ok := app.current.(*licenseSummaryScreen); !ok {
@@ -145,7 +197,7 @@ func TestAppRedeemsPersonalLicenseAndReloadsIt(t *testing.T) {
 		t.Fatalf("Sign: %v", err)
 	}
 
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	msg := app.submitLicenseEntry(string(signed))()
 	app.Update(msg)
 
@@ -163,7 +215,7 @@ func TestAppRedeemsPersonalLicenseAndReloadsIt(t *testing.T) {
 		t.Fatalf("course key = %q, want %q", got, info.CourseKey)
 	}
 
-	app2 := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app2 := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	if app2.lic == nil || !app2.lic.CanAccessCourse("c-module-02") {
 		t.Fatalf("reloaded app license did not preserve entitlement: %+v", app2.lic)
 	}
@@ -295,7 +347,7 @@ func TestAppCourseIntroComplete_GoesToMenuWithCourse(t *testing.T) {
 			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{course}
 	app.pendingCourseEntry = &course
 	app.Update(introCompleteMsg{courseID: "test-course"})
@@ -319,7 +371,7 @@ func TestAppNavigateBackToCourse_PathCourseRestoresPathScreen(t *testing.T) {
 			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1", Exercise: "int main(){}"}},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{course}
 	app.openCourse(course)
 	app.current = NewLessonScreen(course.Sections[0].Lessons[0], 0, 80, 24, app.loc)
@@ -346,7 +398,7 @@ func TestAppLessonCompleted_PathCourseRestoresPathScreen(t *testing.T) {
 			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1", Exercise: "int main(){}"}},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{course}
 	app.openCourse(course)
 
@@ -374,7 +426,7 @@ func TestAppNavigateBackToCourse_ListCourseRestoresLessonMenu(t *testing.T) {
 			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1", Exercise: "int main(){}"}},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{course}
 	app.openCourse(course)
 	app.current = NewLessonScreen(course.Sections[0].Lessons[0], 0, 80, 24, app.loc)
@@ -421,7 +473,7 @@ func TestAppRefreshCurrentScreenData_PathScreenReloadsCourseContent(t *testing.T
 			},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{initial}
 	app.openCourse(initial)
 
@@ -459,7 +511,7 @@ func TestAppLessonCompleted_GoNextOpensNextLessonScreen(t *testing.T) {
 			},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{course}
 	app.openCourse(course)
 
@@ -504,7 +556,7 @@ func TestAppLessonCompleted_GoNextDoesNotJumpAcrossCourses(t *testing.T) {
 			},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{courseA, courseB}
 	app.openCourse(courseA)
 
@@ -535,7 +587,7 @@ func TestAppNavigateBackToCourse_PathCourseKeepsSelectedNode(t *testing.T) {
 			},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{course}
 	app.openCourse(course)
 
@@ -571,7 +623,7 @@ func TestAppLessonCompleted_PathCourseAdvancesSelectedNode(t *testing.T) {
 			},
 		}},
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.courses = []lesson.Course{course}
 	app.openCourse(course)
 
@@ -591,7 +643,7 @@ func TestAppUpdateNotification_AddsPendingNotification(t *testing.T) {
 	if err := database.CreateUser("alice", "", db.RoleStudent); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 
 	if len(app.pendingNotifications) != 0 {
 		t.Fatalf("pendingNotifications = %d, want 0", len(app.pendingNotifications))
@@ -617,7 +669,7 @@ func TestAppUpdateNotification_EmptyVersionDoesNothing(t *testing.T) {
 	if err := database.CreateUser("bob", "", db.RoleStudent); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	app := NewApp("bob", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("bob", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 
 	_, cmd := app.Update(updateCheckMsg{version: "", url: ""})
 	if cmd != nil {
@@ -634,7 +686,7 @@ func TestAppSettingsSaveStaysOnSettings(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 
-	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default", nil, nil)
+	app := NewApp("alice", t.TempDir(), t.TempDir(), database, nil, 80, 24, "default")
 	app.Update(NavigateToSettings{})
 	if _, ok := app.current.(*SettingsScreen); !ok {
 		t.Fatalf("current = %T, want *SettingsScreen", app.current)

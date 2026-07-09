@@ -8,17 +8,13 @@ import (
 	"encoding/binary"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"net"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"ztutor/internal/db"
-	"ztutor/internal/lesson"
 	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 	"ztutor/internal/sandbox"
@@ -31,7 +27,7 @@ import (
 )
 
 type TUIProvider struct {
-	NewStudentApp    func(username, coursesDir, lessonsDir string, db *db.DB, license *license.State, width, height int, keymap string, launchGDB func(*sandbox.DebugBuild, lesson.Lesson), startLesson *lesson.Lesson) tea.Model
+	NewStudentApp    func(username, coursesDir, lessonsDir string, db *db.DB, license *license.State, width, height int, keymap string) tea.Model
 	NewAdminApp      func(username string, db *db.DB, license *license.State, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model
 	LoadAchievements func(path string)
 }
@@ -392,84 +388,6 @@ func setPTYSize(master *os.File, rows, cols int) {
 	})
 }
 
-// runGDBSession allocates a PTY, connects gdb to the slave side, and proxies
-// the SSH channel through the master. gdb sees a real terminal (isatty=true)
-// and behaves interactively. Blocks until gdb exits.
-func (s *Server) runGDBSession(channel gossh.Channel, requests <-chan *gossh.Request, build *sandbox.DebugBuild, cols, rows int) {
-	master, slaveName, err := openPTY()
-	if err != nil {
-		fmt.Fprintf(channel, "\r\ngdb: failed to allocate PTY: %v\r\n", err)
-		return
-	}
-	defer master.Close()
-
-	if cols > 0 && rows > 0 {
-		setPTYSize(master, rows, cols)
-	}
-
-	slave, err := os.OpenFile(slaveName, os.O_RDWR|syscall.O_NOCTTY, 0)
-	if err != nil {
-		fmt.Fprintf(channel, "\r\ngdb: failed to open PTY slave: %v\r\n", err)
-		return
-	}
-
-	gdbArgs := []string{"-q", "-ex", "set debuginfod enabled off",
-		"-ex", "set confirm off"}
-	if len(build.RuntimeArgs) > 0 {
-		gdbArgs = append(gdbArgs, "--args", build.BinaryPath)
-		gdbArgs = append(gdbArgs, build.RuntimeArgs...)
-	} else {
-		gdbArgs = append(gdbArgs, build.BinaryPath)
-	}
-	gdb := exec.Command(sandbox.GetLanguage("c").DebuggerPath(), gdbArgs...)
-	gdb.Stdin = slave
-	gdb.Stdout = slave
-	gdb.Stderr = slave
-	gdb.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:  true, // new session — no inherited controlling terminal
-		Setctty: true, // make slave the controlling terminal
-		Ctty:    0,    // fd 0 = slave in the child
-	}
-
-	if err := gdb.Start(); err != nil {
-		slave.Close()
-		fmt.Fprintf(channel, "\r\ngdb: %v\r\n", err)
-		fmt.Fprintf(channel, "Is gdb installed? (sudo dnf install gdb)\r\n")
-		return
-	}
-	slave.Close() // parent doesn't need the slave fd once the child has it
-
-	// Proxy: SSH channel <-> PTY master.
-	go io.Copy(master, channel)
-	go io.Copy(channel, master)
-
-	// Forward terminal resize events from the SSH client to the PTY.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case req, ok := <-requests:
-				if !ok {
-					return
-				}
-				if req.Type == "window-change" && len(req.Payload) >= 8 {
-					w := int(binary.BigEndian.Uint32(req.Payload[0:4]))
-					h := int(binary.BigEndian.Uint32(req.Payload[4:8]))
-					setPTYSize(master, h, w)
-				}
-				if req.WantReply {
-					req.Reply(false, nil)
-				}
-			}
-		}
-	}()
-
-	gdb.Wait() //nolint:errcheck
-}
-
 func colorProfileForTerm(termName string) termenv.Profile {
 	ck := os.Getenv("COLORTERM")
 	if ck == "truecolor" || ck == "24bit" {
@@ -562,8 +480,6 @@ func (s *Server) runTUI(channel gossh.Channel, requests <-chan *gossh.Request, u
 		s.config.License,
 		curCols, curRows,
 		s.config.Keymap,
-		nil,
-		nil,
 	)
 
 	p := tea.NewProgram(
