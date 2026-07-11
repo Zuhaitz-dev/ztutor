@@ -1,0 +1,16 @@
+fb6ae5bebc39894d2db073d7d94a0d8105536563a2b9b8997de1069112e75225  ./00-module-intro/lesson.md
+45fdaee18442c0b1650d39c6808dbd533f6bd0412af6fe70bdf41a2f8180315d  ./01-hello-stderr/lesson.md
+5a305ed9196e7f93de5f856b3e4914a1daff8eda70cc16cdf7bf6afa721da8c0  ./02-modern-integers/lesson.md
+9a4f7c2fc41b41795e50402e2e1af9844ed5328cd9692608f50c6bad89d6c3e2  ./03-scope-shadowing/lesson.md
+7124b896c33bdd3ae7d39f1861e2fa8dd0eb1b1ad73b15f73ca3fd0d11f2a4d7  ./04-standard-io-traps/lesson.md
+b0de495ab4bd043b8c8ad67e5b271fcd266d49cf33968005cf54e45c7073c2d3  ./05-booleans/lesson.md
+1a9781337333a52a580d7b254489150dc6fe7760e05feb08660c3036a5507ba1  ./06-duffs-device/lesson.md
+54ab5c604a67f5c0d8fb791a9288f98a0dd5c14d76abc8c25fd953c0ea390176  ./07-for-loops-cache/lesson.md
+f1faafe1961d359a0be82418dc748c28b43ff1bebf78bb8a4c6842eee633f6b9  ./08-while-eof/lesson.md
+4fcabca8eaa572d474e1342a9deb934e1cbc548d4ea3c5f082d3de59bad00ece  ./09-call-stack/lesson.md
+d069a516de5cafb6c8de54fc4f5d24055d33fb675ab24112f6dfc66189bdb97c  ./10-pass-by-value/lesson.md
+df8147483a74c05f7e814f30f0a81792374796ea0cf2eb919a8cee564b9146fc  ./11-preprocessor-macros/lesson.md
+026ff9a7c98b817e5937d760cc7f812bc7dcb099538599a5651d819e58ff697c  ./12-conditional-compilation/lesson.md
+a68c05838895512c23e8d3f5452f15d2665fdfc20161b2c1dd7a1d266995cc4b  ./13-macro-gotchas/lesson.md
+7267b0c1ad8d3e5a7579ba02e918970350a3d05e1a66b8d545777a7b1c472201  ./14-makefiles-101/lesson.md
+183beadb51bc7f071ec41c219943b17cebbd941c60087405c95eab789c327028  ./15-capstone-redis/lesson.md

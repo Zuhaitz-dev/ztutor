@@ -35,6 +35,9 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Verify course manifests
+        run: make manifest && git diff --exit-code -- courses/
+
       - name: Build
         run: make build
         env:

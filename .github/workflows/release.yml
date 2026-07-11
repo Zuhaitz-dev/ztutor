@@ -13,9 +13,15 @@ jobs:
     name: Create release
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract release notes
+        run: make release-notes VERSION="${{ github.ref_name }}" > /tmp/release-body.md
+
       - uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: /tmp/release-body.md
+          generate_release_notes: false
 
   build:
     name: Build (${{ matrix.goos }}-${{ matrix.goarch }})

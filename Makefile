@@ -12,7 +12,42 @@ GOFMT := gofmt
 GOFILES := $(shell find . -type f -name '*.go' -not -path './vendor/*')
 STATICCHECK := $(or $(shell command -v staticcheck 2>/dev/null),$(shell go env GOPATH)/bin/staticcheck)
 
-.PHONY: build build-client build-server build-licensegen build-coursepack build-full docker docker-push run run-server clean reset dev dev-server tuitest test vet fmt lint lint-fmt lint-vet lint-staticcheck manifest verify
+# release helpers
+SEMVER_RE := ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$$
+
+define bump_validate
+	@if [ -z "$(VER)" ]; then echo "Usage: make $(1) VER=x.y.z"; exit 1; fi
+	@if ! echo "$(VER)" | grep -qE '$(SEMVER_RE)'; then echo "Version must be semver (e.g. 0.1.18, 0.2.0-rc1)"; exit 1; fi
+	@if [ ! -f CHANGELOG.md ]; then echo "CHANGELOG.md not found"; exit 1; fi
+	@if ! grep -q "^## v$(VER)" CHANGELOG.md; then echo "Section '## v$(VER)' not found in CHANGELOG.md"; exit 1; fi
+endef
+
+# preview: prints the tag that would be created without creating it.
+# Usage: make bump-dry-run VER=0.1.18
+bump-dry-run:
+	$(call bump_validate,$@)
+	@echo "Would create tag: v$(VER)"
+	@awk -v ver="v$(VER)" '/^## v[0-9]/ && $$2 == ver { summary=$$0; sub(/^## v[^ ]* *-- */,"",summary); print "  message: " summary }' CHANGELOG.md
+
+# create a versioned tag. CI builds and publishes assets.
+# Usage: make bump VER=0.1.18
+bump:
+	$(call bump_validate,$@)
+	@summary=$$(awk -v ver="v$(VER)" '/^## v[0-9]/ && $$2 == ver { s=$$0; sub(/^## v[^ ]* *-- */,"",s); print s }' CHANGELOG.md); \
+	if [ -z "$$summary" ]; then echo "No summary found on '## v$(VER)' line in CHANGELOG.md"; exit 1; fi; \
+	git tag -a "v$(VER)" -m "ztutor: $$summary"
+	@echo "Tagged v$(VER). Push with: git push origin v$(VER)"
+
+# extract release notes for a version from CHANGELOG.md.
+# Usage: make release-notes VERSION=v0.1.18 > /tmp/body.md
+release-notes:
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make release-notes VERSION=v0.1.18"; exit 1; fi
+	@awk -v ver="$(VERSION)" ' \
+		/^## v[0-9]/  { if (found) exit; if ($$2 == ver) found=1; next } \
+		found        { sub(/^## v[^ ]* *-- */, "## "); print } \
+	' CHANGELOG.md
+
+.PHONY: build build-client build-server build-licensegen build-coursepack build-full docker docker-push run run-server clean reset dev dev-server tuitest test vet fmt lint lint-fmt lint-vet lint-staticcheck manifest verify bump bump-dry-run release-notes manifest-verify
 
 build: build-client build-server
 
@@ -78,8 +113,17 @@ dev-server:
 tuitest: | $(GOCACHE_DIR)
 	$(GO) run ./cmd/tuitest/
 
-test: | $(GOCACHE_DIR)
+test: manifest-verify | $(GOCACHE_DIR)
 	$(GO) test ./...
+
+manifest-verify:
+	@$(MAKE) -s manifest
+	@if ! git diff --exit-code -- courses/ > /dev/null 2>&1; then \
+		echo "ERROR: course manifests are out of date."; \
+		echo "Run 'make manifest' and commit the updated files."; \
+		git diff --stat -- courses/; \
+		exit 1; \
+	fi
 
 vet: | $(GOCACHE_DIR)
 	$(GO) vet ./...
