@@ -49,17 +49,16 @@ func requireTCPListener(t *testing.T) {
 	ln.Close()
 }
 
-// waitForListener polls until the server has bound a port, then returns the address string.
+// waitForListener blocks until the server has bound a port, then returns the address string.
 func waitForListener(t *testing.T, srv *Server) string {
 	t.Helper()
-	for i := 0; i < 200; i++ {
-		if srv.listener != nil {
-			return srv.listener.Addr().String()
-		}
-		time.Sleep(10 * time.Millisecond)
+	select {
+	case <-srv.Ready():
+		return srv.ListenAddr()
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not start listening in time")
+		return ""
 	}
-	t.Fatal("server did not start listening in time")
-	return ""
 }
 
 // dial connects via SSH using password auth.
