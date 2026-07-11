@@ -117,13 +117,23 @@ test: manifest-verify | $(GOCACHE_DIR)
 	$(GO) test ./...
 
 manifest-verify:
-	@$(MAKE) -s manifest
-	@if ! git diff --exit-code -- courses/ > /dev/null 2>&1; then \
-		echo "ERROR: course manifests are out of date."; \
-		echo "Run 'make manifest' and commit the updated files."; \
-		git diff --stat -- courses/; \
-		exit 1; \
-	fi
+	@backup=$$(mktemp -d); \
+	trap 'rm -rf "$$backup"' EXIT; \
+	for f in $$(find courses/ -name 'manifest.sha256' -type f 2>/dev/null); do \
+		mkdir -p "$$backup/$$(dirname "$$f")"; \
+		cp "$$f" "$$backup/$$f"; \
+	done; \
+	$(MAKE) -s manifest; \
+	fail=0; \
+	for f in $$(find courses/ -name 'manifest.sha256' -type f 2>/dev/null); do \
+		if ! diff "$$f" "$$backup/$$f" > /dev/null 2>&1; then \
+			cp "$$backup/$$f" "$$f"; \
+			echo "ERROR: manifest out of date for $$f"; \
+			echo "       Run 'make manifest' and commit the updated files."; \
+			fail=1; \
+		fi; \
+	done; \
+	exit $$fail
 
 vet: | $(GOCACHE_DIR)
 	$(GO) vet ./...
@@ -157,8 +167,10 @@ lint-staticcheck:
 	fi
 	$(STATICCHECK) ./...
 
+MANIFEST_DIR ?= courses/
+
 manifest:
-	@for d in courses/*/; do \
+	@for d in $(MANIFEST_DIR)*/; do \
 		test -d "$$d" || continue; \
 		for sec in "$$d"lessons/ "$$d"interviews/; do \
 			test -d "$$sec" || continue; \
