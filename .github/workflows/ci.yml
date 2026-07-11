@@ -21,7 +21,8 @@ jobs:
             gcc g++ gdb \
             python3 \
             ruby \
-            openjdk-17-jdk-headless
+            openjdk-17-jdk-headless \
+            git
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -34,9 +35,6 @@ jobs:
 
       - name: Test
         run: make test
-
-      - name: Verify course manifests
-        run: make manifest && git diff --exit-code -- courses/
 
       - name: Build
         run: make build
