@@ -1,6 +1,5 @@
 ---
 difficulty: intermediate
-premium: false
 tags: [performance, memory, cache, ffmpeg, optimization, alignment, prefetch, numa]
 tutorial:
   - "CPUs fetch memory in 64-byte cache lines. Accessing sequential bytes is nearly free: the next line is prefetched automatically."

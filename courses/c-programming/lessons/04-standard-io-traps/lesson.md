@@ -1,6 +1,5 @@
 ---
 difficulty: beginner
-premium: false
 tags: [io, security, strings, parsing, protocols, irc, ngircd, buffer-overflow]
 tutorial:
   - "scanf(\"%s\", buffer) reads until whitespace with no length limit: it will overflow any fixed buffer given long enough input."

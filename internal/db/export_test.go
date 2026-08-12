@@ -15,7 +15,7 @@ func TestImportStudentsCSV(t *testing.T) {
 	defer db2.Close()
 
 	csv := []byte("alice,password1\nbob,password2\ncharlie,password3\n")
-	result, err := db2.ImportStudentsCSV(csv, 0)
+	result, err := db2.ImportStudentsCSV(csv)
 	if err != nil {
 		t.Fatalf("ImportStudentsCSV: %v", err)
 	}
@@ -42,38 +42,6 @@ func TestImportStudentsCSV(t *testing.T) {
 	}
 }
 
-func TestImportStudentsCSV_SeatLimit(t *testing.T) {
-	dir := t.TempDir()
-	db2, err := Open(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer db2.Close()
-
-	// Import 2 students with a limit of 2
-	csv := []byte("alice,pw1\nbob,pw2\n")
-	result, err := db2.ImportStudentsCSV(csv, 2)
-	if err != nil {
-		t.Fatalf("ImportStudentsCSV: %v", err)
-	}
-	if len(result.Created) != 2 {
-		t.Errorf("Created = %d, want 2", len(result.Created))
-	}
-
-	// Add a third student — should hit limit
-	csv2 := []byte("charlie,pw3\n")
-	result2, err := db2.ImportStudentsCSV(csv2, 2)
-	if err != nil {
-		t.Fatalf("ImportStudentsCSV second pass: %v", err)
-	}
-	if len(result2.Created) != 0 {
-		t.Errorf("Created = %d, want 0 (seat limit)", len(result2.Created))
-	}
-	if len(result2.Errors) == 0 {
-		t.Error("should have seat limit error")
-	}
-}
-
 func TestImportStudentsCSV_SkipDuplicates(t *testing.T) {
 	dir := t.TempDir()
 	db2, err := Open(filepath.Join(dir, "test.db"))
@@ -83,13 +51,13 @@ func TestImportStudentsCSV_SkipDuplicates(t *testing.T) {
 	defer db2.Close()
 
 	csv := []byte("alice,pw1\nbob,pw2\n")
-	_, err = db2.ImportStudentsCSV(csv, 0)
+	_, err = db2.ImportStudentsCSV(csv)
 	if err != nil {
 		t.Fatalf("first import: %v", err)
 	}
 
 	// Import again — should skip existing users
-	result, err := db2.ImportStudentsCSV(csv, 0)
+	result, err := db2.ImportStudentsCSV(csv)
 	if err != nil {
 		t.Fatalf("second import: %v", err)
 	}
@@ -109,7 +77,7 @@ func TestImportStudentsCSV_EmptyFile(t *testing.T) {
 	}
 	defer db2.Close()
 
-	result, err := db2.ImportStudentsCSV([]byte{}, 0)
+	result, err := db2.ImportStudentsCSV([]byte{})
 	if err != nil {
 		t.Fatalf("ImportStudentsCSV empty: %v", err)
 	}

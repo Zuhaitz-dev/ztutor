@@ -47,7 +47,7 @@ release-notes:
 		found        { sub(/^## v[^ ]* *-- */, "## "); print } \
 	' CHANGELOG.md
 
-.PHONY: build build-client build-server build-licensegen build-coursepack build-full docker docker-push run run-server clean reset dev dev-server tuitest test vet fmt lint lint-fmt lint-vet lint-staticcheck manifest verify bump bump-dry-run release-notes manifest-verify
+.PHONY: build build-client build-server docker docker-push run run-server clean reset dev dev-server tuitest test vet fmt lint lint-fmt lint-vet lint-staticcheck manifest verify bump bump-dry-run release-notes manifest-verify
 
 build: build-client build-server
 
@@ -59,14 +59,6 @@ build-client: | $(GOCACHE_DIR)
 
 build-server: | $(GOCACHE_DIR)
 	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutord ./cmd/ztutord/
-
-build-licensegen: | $(GOCACHE_DIR)
-	$(GO) build $(GOFLAGS) -o licensegen ./cmd/licensegen/
-
-build-coursepack: | $(GOCACHE_DIR)
-	$(GO) build $(GOFLAGS) -o coursepack ./cmd/coursepack/
-
-build-full: build-client build-server build-licensegen build-coursepack
 
 IMAGE ?= ztutor
 
@@ -82,21 +74,14 @@ docker-push:
 	docker push $(IMAGE):$(VERSION)
 	docker push $(IMAGE):latest
 
-DEV_PUBKEY  := aad959454bf169a828c90312863eafa064a4b507aa512ef19ca96b37a9d898ce
-DEV_LICENSE := ./license_test.key
-
-ifdef PREMIUM
-RUN_ENV := ZTUTOR_LICENSE_PUBKEY=$(DEV_PUBKEY) ZTUTOR_LICENSE_FILE=$(DEV_LICENSE)
-endif
-
 run: build-client
 	./ztutor
 
 run-server: build-server
-	$(RUN_ENV) ./ztutord
+	./ztutord
 
 clean:
-	rm -f ztutor ztutord licensegen coursepack ztutor.db ztutor_host_key
+	rm -f ztutor ztutord ztutor.db ztutor_host_key
 
 reset: clean
 	rm -f $(HOME)/.local/share/ztutor/ztutor.db $(HOME)/.local/share/ztutor/ztutor_host_key
@@ -108,7 +93,7 @@ dev:
 	VERSION=dev $(GO) run ./cmd/ztutor/
 
 dev-server:
-	$(RUN_ENV) VERSION=dev $(GO) run ./cmd/ztutord/
+	VERSION=dev $(GO) run ./cmd/ztutord/
 
 tuitest: | $(GOCACHE_DIR)
 	$(GO) run ./cmd/tuitest/

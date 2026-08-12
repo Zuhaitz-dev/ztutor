@@ -20,10 +20,7 @@ make build
 
 On first run the server prints a setup token and the SSH address to connect to. The token is valid for 24 hours and locks after 5 failed attempts.
 
-The first account depends on the active tier:
-
-- Free tier: creates the first learner account
-- Business license with `admin_ui`: creates the admin account
+The first connection creates the admin account. Later connections create (or log into) student accounts.
 
 Connect in another terminal:
 
@@ -31,11 +28,11 @@ Connect in another terminal:
 ssh yourname@localhost -p 2222
 ```
 
-Paste the setup token when prompted to create the first account.
+Paste the setup token when prompted to create the first (admin) account.
 
 ### Local admin dashboard
 
-If you are running `ztutord` on the same machine you are sitting at, use the `-local` flag to open the local control flow directly in your terminal instead of SSHing in:
+If you are running `ztutord` on the same machine you are sitting at, use the `-local` flag to open the admin dashboard directly in your terminal instead of SSHing in:
 
 ```bash
 ./ztutord -local
@@ -43,12 +40,9 @@ If you are running `ztutord` on the same machine you are sitting at, use the `-l
 
 The SSH server still starts in the background so students can connect while you manage the server from the same terminal session.
 
-- Free tier opens learner setup or learner mode
-- Business with `admin_ui` opens the admin dashboard
-
 Press `q` or `Ctrl+C` in the local interface to exit; the SSH server shuts down cleanly.
 
-The included `courses/c-programming` course ships 15 free lessons covering C foundations (Module 1). No C experience needed; prior programming experience in any language is assumed. Students can start immediately without a license. Additional modules and premium content can be distributed as `.course` packages placed in the `courses/` directory. If `courses/` is empty or not mounted, the app starts with an empty course menu.
+The included `courses/c-programming` course ships 15 free lessons covering C foundations (Module 1). No C experience needed; prior programming experience in any language is assumed. All course content is open. Additional courses are plain directories (or tarballs extracted into `courses/`). If `courses/` is empty or not mounted, the app starts with an empty course menu.
 
 ### Local controller support (Linux only)
 
@@ -100,13 +94,12 @@ Both paths work simultaneously; you can have the native driver and a mapper acti
 
 ```bash
 cp .env.example .env
-# Set ZTUTOR_LICENSE_PUBKEY in .env
 docker compose up -d
 ```
 
 Students connect with: `ssh username@yourhost -p 2222`
 
-The Docker service mounts `./courses` into the container as read-only course content. A fresh checkout includes `courses/c-programming` (Module 1, 15 free lessons). Add additional `.course` packages or course directories to the mount to make more content available.
+The Docker service mounts `./courses` into the container as read-only course content. A fresh checkout includes `courses/c-programming` (Module 1, 15 free lessons). Add additional course directories to the mount to make more content available.
 
 ### systemd
 
@@ -137,10 +130,7 @@ Create `ztutor.json` next to the binary:
   "db": {
     "path": "ztutor.db"
   },
-  "courses_dir": "./courses",
-  "license": {
-    "file": "license.key"
-  }
+  "courses_dir": "./courses"
 }
 ```
 
@@ -148,10 +138,8 @@ Environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `ZTUTOR_DATA_DIR` | Base directory for the database, host key, and license file |
+| `ZTUTOR_DATA_DIR` | Base directory for the database and host key |
 | `ZTUTOR_CONFIG` | Path to the config file |
-| `ZTUTOR_LICENSE_PUBKEY` | Hex-encoded Ed25519 public key for license verification |
-| `ZTUTOR_LICENSE_FILE` | License file path |
 | `ZTUTOR_NO_NAMESPACES=1` | Disable Linux namespace isolation (for environments that do not support it) |
 | `ZTUTOR_EXEC_ADDR` | Client-side remote execution server address |
 | `ZTUTOR_EXEC_TOKEN` | Shared token for remote execution requests |
@@ -171,8 +159,6 @@ title: C Programming
 description: "Learn C from hello world to pointers."
 language: c
 order: 1
-enrollment:
-  required: false       # false = open access, true = license required
 sections:
   - id: lessons
     title: Lessons
@@ -235,7 +221,6 @@ lessons/
 ```markdown
 ---
 difficulty: intermediate
-premium: true
 tags: [pointers, memory]
 tutorial:
   - "First tutorial beat."
@@ -249,67 +234,11 @@ references:
 Lesson content in markdown. Code blocks are syntax-highlighted.
 ```
 
-Set `premium: true` to gate a lesson behind a license. Free-tier users still see the lesson title with a `[P]` badge, but cannot open it. Courses with at least one premium lesson show `[freemium]` in the course list.
-
-## Licensing and tiers
-
-`ztutor` currently maps to three practical tiers:
-
-- `Free`: single-learner access to built-in open content
-- `Premium`: licensed content unlocks for an individual learner
-- `Business`: multi-user server deployment for schools or teams
-
-In product terms, the paths are:
-
-- Learn locally with the free tier
-- Add a personal license to unlock premium content
-- Deploy the server with a business license for classrooms or teams
-
-| Feature | Free | Premium | Business |
-|---------|------|---------|----------|
-| C Programming Module 1 (15 lessons) | yes | yes | yes |
-| All open / non-premium lessons | yes | yes | yes |
-| Single learner / self-study use | yes | yes | yes |
-| Premium lessons and courses | no | yes | yes |
-| Encrypted `.course` packages | no | yes | yes |
-| Interview sections | no | optional | optional |
-| License key | no | per-user | per-org |
-| Multi-user SSH server | no | no | yes |
-| Admin dashboard | no | no | yes |
-| Seat limit management | no | no | yes |
-| Custom/private deployment | no | no | yes |
-
-On the server, free tier means student access to open content only. It does not include multi-user administration, interview sections, or premium or encrypted course access. Business is the deployment tier for shared execution, student management, and admin tools.
-
-### Issue a license
-
-```bash
-go run ./cmd/licensegen/ \
-  --key-file ztutor_keys.json \
-  --licensee "Acme School" \
-  --max-students 100 \
-  --courses "c-programming,python-basics" \
-  --features "multi_user,admin_ui,interviews" \
-  --expires 365d
-```
-
-### License features
-
-| Feature flag | Effect |
-|--------------|--------|
-| `multi_user` | Allows multiple student accounts |
-| `admin_ui` | Enables the admin dashboard |
-| `interviews` | Unlocks interview sections |
-
-### Encrypted course packages
-
-Premium courses are distributed as `.course` files: AES-256-GCM encrypted archives signed with the publisher's Ed25519 key. Place `.course` files in the `courses_dir`. If the license contains a valid course key, the course loads automatically. Without a valid key, the course appears in the menu as a preview with an `[encrypted]` badge and no lessons.
+All lessons are open to every user. The `premium` frontmatter key (from older courses) is parsed but ignored.
 
 ## Admin dashboard
 
-Available when a license with `admin_ui` is active. The first connection creates the admin account. From the dashboard you can manage students, create and edit lessons (via a guided wizard), manage courses, and view student progress.
-
-Without `admin_ui`, first-run setup stays in learner mode. That matches the free tier: the server remains usable for a single learner, but it does not become an admin-managed multi-user deployment.
+The first connection creates the admin account. From the dashboard you can manage students, create and edit lessons (via a guided wizard), manage courses, and view student progress.
 
 The admin dashboard is accessible two ways:
 
@@ -358,13 +287,11 @@ ztutor/
   cmd/
     ztutor/          # main client binary (local mode)
     ztutord/         # SSH server binary
-    licensegen/      # license key generation tool
   internal/
     config/          # JSON config loading
     db/              # SQLite: users, progress, enrollments, challenges, settings
     i18n/            # localization (en, es, ar, zh)
     lesson/          # course and lesson manifest parsing
-    license/         # Ed25519 license verification
     remote/          # remote execution client and server (ztutord thin backend)
     sandbox/         # language abstraction, compilation, sandboxed execution
     ssh/             # SSH server, PTY handling, authentication
@@ -381,11 +308,8 @@ ztutor/
 - [Glamour](https://github.com/charmbracelet/glamour) -- terminal markdown rendering
 - [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) -- pure-Go SQLite (no cgo required)
 - golang.org/x/crypto/ssh -- SSH server
-- Ed25519 -- license key signing and course package signing
 - Linux namespaces -- sandbox isolation (Linux only; macOS runs without namespace isolation)
 
 ## License
 
-AGPL-3.0 for open-source use. See [LICENSE](LICENSE).
-
-Commercial licenses are available for organizations that need private deployments, proprietary modifications, or hosted service use without AGPL obligations. See [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL) or contact zuhaitz.zechhub@gmail.com.
+AGPL-3.0. See [LICENSE](LICENSE).

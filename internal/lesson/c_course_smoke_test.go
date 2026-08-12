@@ -331,9 +331,6 @@ func TestCourseMetadata(t *testing.T) {
 	if c.Layout != CourseLayoutPath {
 		t.Errorf("Course Layout = %q, want path", c.Layout)
 	}
-	if c.EnrollmentRequired {
-		t.Error("c-programming should have enrollment required = false")
-	}
 	if c.TotalLessons != 16 {
 		t.Errorf("TotalLessons = %d, want 16", c.TotalLessons)
 	}

@@ -1,20 +1,17 @@
 package main
 
 import (
-	"crypto/ed25519"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"ztutor/internal/apputil"
 	"ztutor/internal/db"
-	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 	"ztutor/internal/remote"
 	"ztutor/internal/sandbox"
 	"ztutor/internal/tui"
-	"ztutor/internal/update"
 	"ztutor/internal/version"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,7 +30,7 @@ func main() {
 	}
 
 	if *checkUpdate {
-		checkAndPrintUpdate()
+		apputil.CheckAndPrintUpdate()
 		return
 	}
 
@@ -43,7 +40,7 @@ func main() {
 	logutil.Debug("verbose logging enabled")
 	tui.SetNativeGamepadEnabled(os.Getenv("ZTUTOR_GAMEPAD") != "0")
 
-	dataDir := envOrDefault("ZTUTOR_DATA_DIR", defaultDataDir())
+	dataDir := apputil.EnvOrDefault("ZTUTOR_DATA_DIR", apputil.DefaultDataDir())
 	logutil.Debug("data dir: %s", dataDir)
 	if dataDir != "." {
 		if err := os.MkdirAll(dataDir, 0700); err != nil {
@@ -51,7 +48,7 @@ func main() {
 		}
 	}
 
-	dbPath := envOrDefault("ZTUTOR_DB", filepath.Join(dataDir, "ztutor.db"))
+	dbPath := apputil.EnvOrDefault("ZTUTOR_DB", filepath.Join(dataDir, "ztutor.db"))
 	logutil.Debug("db path: %s", dbPath)
 	database, err := db.Open(dbPath)
 	if err != nil {
@@ -61,15 +58,11 @@ func main() {
 
 	username := currentUser()
 
-	configureLicensePublicKey()
-
 	if _, err := database.GetUser(username); err != nil {
 		if err := database.CreateUser(username, "", db.RoleStudent); err != nil {
 			logutil.Fatal("create user: %v", err)
 		}
 	}
-
-	lic := loadStartupLicense(username, database, dataDir)
 
 	// Configure remote execution server: env vars take priority over DB user settings.
 	execAddr := os.Getenv("ZTUTOR_EXEC_ADDR")
@@ -98,8 +91,8 @@ func main() {
 		}
 	}
 
-	coursesDir := envOrDefault("ZTUTOR_COURSES_DIR", defaultCoursesDir(dataDir))
-	lessonsDir := envOrDefault("ZTUTOR_LESSONS_DIR", "")
+	coursesDir := apputil.EnvOrDefault("ZTUTOR_COURSES_DIR", defaultCoursesDir(dataDir))
+	lessonsDir := apputil.EnvOrDefault("ZTUTOR_LESSONS_DIR", "")
 	if lessonsDir == "" {
 		lessonsDir = "./courses" // modern default: courses dir contains the lessons
 	}
@@ -121,7 +114,6 @@ func main() {
 		coursesDir,
 		lessonsDir,
 		database,
-		lic,
 		width, height,
 		keymap,
 	)
@@ -139,64 +131,6 @@ func main() {
 	}
 }
 
-func configureLicensePublicKey() {
-	pubKeyHex := os.Getenv("ZTUTOR_LICENSE_PUBKEY")
-	if pubKeyHex == "" {
-		return
-	}
-	b, err := hex.DecodeString(pubKeyHex)
-	if err != nil {
-		logutil.Warn("invalid ZTUTOR_LICENSE_PUBKEY: %v", err)
-		return
-	}
-	license.SetPublicKey(ed25519.PublicKey(b))
-}
-
-func loadStartupLicense(username string, database *db.DB, dataDir string) *license.State {
-	licenseFile := discoverLicenseFile(dataDir)
-	if licenseFile == "" {
-		return nil
-	}
-	data, err := os.ReadFile(licenseFile)
-	if err != nil {
-		logutil.Warn("read license file %s: %v", licenseFile, err)
-		return nil
-	}
-	state, info, err := license.CheckData(data)
-	if err != nil {
-		logutil.Warn("license file %s: %v", licenseFile, err)
-		return nil
-	}
-	if info.IsPersonal() {
-		if err := database.RedeemPersonalLicense(username, info, data); err != nil {
-			logutil.Warn("redeem personal license from %s: %v", licenseFile, err)
-			return nil
-		}
-	}
-	logutil.Info("license loaded from %s", licenseFile)
-	return state
-}
-
-func discoverLicenseFile(dataDir string) string {
-	if explicit := os.Getenv("ZTUTOR_LICENSE_FILE"); explicit != "" {
-		if _, err := os.Stat(explicit); err == nil {
-			return explicit
-		}
-		return ""
-	}
-	candidates := []string{"license.key"}
-	if exe, err := os.Executable(); err == nil {
-		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "license.key"))
-	}
-	candidates = append(candidates, filepath.Join(dataDir, "license.key"))
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	return ""
-}
-
 func currentUser() string {
 	if u := os.Getenv("ZTUTOR_USER"); u != "" {
 		return u
@@ -210,44 +144,10 @@ func currentUser() string {
 	return "user"
 }
 
-func defaultDataDir() string {
-	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
-		return filepath.Join(dir, "ztutor")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "."
-	}
-	return filepath.Join(home, ".local", "share", "ztutor")
-}
-
 func defaultCoursesDir(dataDir string) string {
 	installed := filepath.Join(dataDir, "courses")
 	if info, err := os.Stat(installed); err == nil && info.IsDir() {
 		return installed
 	}
 	return "./courses"
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func checkAndPrintUpdate() {
-	info, err := update.CheckLatest(version.Version, nil, "")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Update check failed: %v\n", err)
-		os.Exit(1)
-	}
-	if info == nil {
-		fmt.Printf("ztutor %s is up to date.\n", version.Version)
-		return
-	}
-	fmt.Printf("New version %s available\n", info.Version)
-	fmt.Printf("  Released: %s\n", info.PublishedAt)
-	fmt.Printf("  Download: %s\n", info.ReleaseURL)
-	fmt.Printf("\nRun update-ztutor.sh to install automatically.\n")
 }

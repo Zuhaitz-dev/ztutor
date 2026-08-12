@@ -271,34 +271,6 @@ func TestParseFrontmatter_None(t *testing.T) {
 	}
 }
 
-func TestParseFrontmatter_Premium(t *testing.T) {
-	raw := `---
-difficulty: advanced
-premium: true
-tags: [memory]
----
-# Pointers`
-
-	fm, body := parseFrontmatter(raw)
-	if !fm.Premium {
-		t.Error("premium = false, want true")
-	}
-	if body != "# Pointers" {
-		t.Errorf("body = %q", body)
-	}
-
-	// Premium omitted = false.
-	raw2 := `---
-difficulty: beginner
----
-# Free`
-
-	fm2, _ := parseFrontmatter(raw2)
-	if fm2.Premium {
-		t.Error("premium = true, want false when omitted")
-	}
-}
-
 func TestParseFrontmatter_EmptyKeys(t *testing.T) {
 	raw := `---
 difficulty: advanced

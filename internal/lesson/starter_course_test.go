@@ -23,9 +23,6 @@ func TestStarterCourseLoadsInAllUILanguages(t *testing.T) {
 			if starter == nil {
 				t.Fatal("c-programming course not loaded")
 			}
-			if starter.EnrollmentRequired {
-				t.Fatal("c-programming should be open access (enrollment not required)")
-			}
 			if len(starter.Sections) != 1 {
 				t.Fatalf("section count = %d, want 1", len(starter.Sections))
 			}

@@ -1,6 +1,5 @@
 ---
 difficulty: advanced
-premium: false
 tags: [preprocessor, macros, linux, kernel, compiler-extensions, generic, static-assert]
 tutorial:
   - "Macros substitute text, not values. If you pass x++ to a macro, the ++ executes once per occurrence in the expansion."

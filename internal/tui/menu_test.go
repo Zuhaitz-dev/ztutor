@@ -8,7 +8,6 @@ import (
 
 	"ztutor/internal/i18n"
 	"ztutor/internal/lesson"
-	"ztutor/internal/license"
 )
 
 func TestSectionCounts(t *testing.T) {
@@ -36,7 +35,7 @@ func TestSectionCounts(t *testing.T) {
 }
 
 func TestMenuView_EmptyCoursesStillShowsMochi(t *testing.T) {
-	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, testLocale(), 80, 24)
+	m := NewMenuScreen(nil, nil, nil, "alice", 0, false, nil, testLocale(), 80, 24)
 	plain := stripANSI(m.View())
 	if !strings.Contains(plain, "Mochi") {
 		t.Fatalf("empty course menu should still render Mochi, got:\n%s", plain)
@@ -54,7 +53,7 @@ func TestMenuEnterCourse_NoIntroWithoutCourseIntro(t *testing.T) {
 			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
 		}},
 	}
-	m := NewMenuScreen([]lesson.Course{course}, nil, nil, nil, nil, "alice", 0, false, func(string) bool {
+	m := NewMenuScreen([]lesson.Course{course}, nil, nil, "alice", 0, false, func(string) bool {
 		return true
 	}, testLocale(), 80, 24)
 
@@ -80,7 +79,7 @@ func TestMenuEnterCourse_WithCourseIntroTriggersIntro(t *testing.T) {
 			Lessons: []lesson.Lesson{{ID: "l1", Title: "Lesson 1"}},
 		}},
 	}
-	m := NewMenuScreen([]lesson.Course{course}, nil, nil, nil, nil, "alice", 0, false, func(string) bool {
+	m := NewMenuScreen([]lesson.Course{course}, nil, nil, "alice", 0, false, func(string) bool {
 		return true
 	}, testLocale(), 80, 24)
 
@@ -95,7 +94,7 @@ func TestMenuEnterCourse_WithCourseIntroTriggersIntro(t *testing.T) {
 }
 
 func TestRenderCourseLine_ShowsProgrammingLanguages(t *testing.T) {
-	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, testLocale(), 80, 24)
+	m := NewMenuScreen(nil, nil, nil, "alice", 0, false, nil, testLocale(), 80, 24)
 	course := lesson.Course{
 		ID:                   "starter",
 		Title:                "Starter",
@@ -117,7 +116,7 @@ func TestRenderCourseLine_ShowsProgrammingLanguages(t *testing.T) {
 }
 
 func TestRenderCourseLine_TruncatesTitleForBadges(t *testing.T) {
-	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, testLocale(), 60, 24)
+	m := NewMenuScreen(nil, nil, nil, "alice", 0, false, nil, testLocale(), 60, 24)
 	course := lesson.Course{
 		ID:       "starter",
 		Title:    "An exceptionally long starter course title",
@@ -140,7 +139,7 @@ func TestRenderCourseLine_TruncatesTitleForBadges(t *testing.T) {
 }
 
 func TestRenderCourseLine_CompactsSegmentsBeforeOverflow(t *testing.T) {
-	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, testLocale(), 32, 24)
+	m := NewMenuScreen(nil, nil, nil, "alice", 0, false, nil, testLocale(), 32, 24)
 	course := lesson.Course{
 		ID:                   "starter",
 		Title:                "Starter",
@@ -162,7 +161,7 @@ func TestRenderCourseLine_CompactsSegmentsBeforeOverflow(t *testing.T) {
 }
 
 func TestRenderCourseLine_RTLReversesInlineOrder(t *testing.T) {
-	m := NewMenuScreen(nil, nil, nil, nil, nil, "alice", 0, false, nil, i18n.New("ar"), 80, 24)
+	m := NewMenuScreen(nil, nil, nil, "alice", 0, false, nil, i18n.New("ar"), 80, 24)
 	course := lesson.Course{
 		ID:                   "starter",
 		Title:                "Starter",
@@ -229,65 +228,6 @@ func TestCourseProgressCounts_Empty(t *testing.T) {
 	}
 }
 
-func TestFilterCourses_EnrollmentRequired(t *testing.T) {
-	courses := []lesson.Course{
-		{ID: "free", EnrollmentRequired: false, Sections: []lesson.Section{{Type: "exercises", Lessons: []lesson.Lesson{{ID: "a"}}}}},
-		{ID: "premium", EnrollmentRequired: true, Sections: []lesson.Section{{Type: "exercises", Lessons: []lesson.Lesson{{ID: "b"}}}}},
-	}
-	enrolled := map[string]bool{"premium": true}
-	result := filterCourses(courses, nil, enrolled)
-	if len(result) != 2 {
-		t.Fatalf("expected 2 courses, got %d", len(result))
-	}
-}
-
-func TestFilterCourses_EnrolledOnly(t *testing.T) {
-	courses := []lesson.Course{
-		{ID: "free", EnrollmentRequired: false, Sections: []lesson.Section{{Type: "exercises", Lessons: []lesson.Lesson{{ID: "a"}}}}},
-		{ID: "premium", EnrollmentRequired: true, Sections: []lesson.Section{{Type: "exercises", Lessons: []lesson.Lesson{{ID: "b"}}}}},
-	}
-	enrolled := map[string]bool{}
-	result := filterCourses(courses, nil, enrolled)
-	if len(result) != 1 {
-		t.Fatalf("expected 1 course (free only), got %d", len(result))
-	}
-	if result[0].ID != "free" {
-		t.Errorf("free course not in result: %v", result)
-	}
-}
-
-func TestFilterCourses_LicenseGated(t *testing.T) {
-	courses := []lesson.Course{
-		{ID: "c1", EnrollmentRequired: true, Sections: []lesson.Section{{Type: "exercises", Lessons: []lesson.Lesson{{ID: "a"}}}}},
-		{ID: "c2", EnrollmentRequired: false, Sections: []lesson.Section{{Type: "exercises", Lessons: []lesson.Lesson{{ID: "b"}}}}},
-	}
-	lic := &license.State{
-		Licensed:        true,
-		HasMultiUser:    true,
-		UnlockedCourses: []string{"c1"},
-	}
-	result := filterCourses(courses, lic, map[string]bool{"c1": true})
-	if len(result) != 2 {
-		t.Fatalf("expected 2 courses, got %d", len(result))
-	}
-}
-
-func TestFilterCourses_LicenseGatedWithoutMultiUser(t *testing.T) {
-	courses := []lesson.Course{
-		{ID: "c1", EnrollmentRequired: true, Sections: []lesson.Section{{Type: "exercises", Lessons: []lesson.Lesson{{ID: "a"}}}}},
-		{ID: "c2", EnrollmentRequired: false, Sections: []lesson.Section{{Type: "exercises", Lessons: []lesson.Lesson{{ID: "b"}}}}},
-	}
-	lic := &license.State{
-		Licensed:        true,
-		HasMultiUser:    false,
-		UnlockedCourses: []string{}, // course c1 is not unlocked
-	}
-	result := filterCourses(courses, lic, map[string]bool{"c1": true})
-	if len(result) != 2 {
-		t.Fatalf("expected 2 courses (c1 via enrollment, c2 free), got %d", len(result))
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Star system — read-only vs exercise
 // ---------------------------------------------------------------------------
@@ -296,8 +236,6 @@ func makeMenuWithProgress(sections []lesson.Section, progress map[string]int) *M
 	c := lesson.Course{ID: "c", Sections: sections}
 	m := NewMenuScreen(
 		[]lesson.Course{c},
-		nil,
-		func(string) bool { return true },
 		progress,
 		nil, "", 0, false,
 		func(string) bool { return false },

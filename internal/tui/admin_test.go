@@ -7,7 +7,6 @@ import (
 
 	"ztutor/internal/db"
 	"ztutor/internal/i18n"
-	"ztutor/internal/license"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -46,37 +45,13 @@ func TestAdminDashboard_View(t *testing.T) {
 	_ = database.CreateUser("alice", "pw", db.RoleStudent)
 	loc := testLocale()
 
-	m := newAdminDashboard(database, nil, loc, 80, 24)
+	m := newAdminDashboard(database, loc, 80, 24)
 	view := m.View()
 
 	assertViewNonEmpty(t, "dashboard", view)
 	plain := stripANSI(view)
 	if !strings.Contains(plain, "Admin") {
 		t.Error("dashboard view missing expected 'Admin' content")
-	}
-}
-
-func TestAdminDashboard_View_WithLicense(t *testing.T) {
-	database := testDB(t)
-	_ = database.CreateUser("alice", "pw", db.RoleStudent)
-	loc := testLocale()
-
-	lic := &license.State{
-		Licensed:        true,
-		Licensee:        "Test School",
-		MaxStudents:     50,
-		UnlockedCourses: []string{"c1"},
-		HasMultiUser:    true,
-	}
-
-	m := newAdminDashboard(database, lic, loc, 80, 24)
-	view := m.View()
-
-	assertViewNonEmpty(t, "dashboard with license", view)
-	plain := stripANSI(view)
-	// Licensed dashboard should show licensee name and features.
-	if !strings.Contains(plain, "Test School") {
-		t.Error("dashboard should show licensee name 'Test School'")
 	}
 }
 
@@ -94,35 +69,12 @@ func TestRainCol_RenderAt_WrapsGlyphWithLTRMarkers(t *testing.T) {
 	}
 }
 
-func TestAdminDashboard_View_ArabicLicenseeUsesLTRIsolation(t *testing.T) {
-	database := testDB(t)
-	loc := i18n.New("ar")
-
-	lic := &license.State{
-		Licensed:        true,
-		Licensee:        "Test School",
-		MaxStudents:     50,
-		UnlockedCourses: []string{"c1"},
-		HasMultiUser:    true,
-	}
-
-	m := newAdminDashboard(database, lic, loc, 80, 24)
-	view := m.View()
-
-	if !strings.Contains(view, forceLTRText("Test School")) {
-		t.Fatalf("arabic dashboard should isolate licensee as LTR, got %q", view)
-	}
-	if !strings.Contains(view, forceLTRText("premium, multi-user")) {
-		t.Fatalf("arabic dashboard should isolate feature list as LTR, got %q", view)
-	}
-}
-
 func TestAdminDashboard_View_FlashError(t *testing.T) {
 	database := testDB(t)
 	_ = database.CreateUser("alice", "pw", db.RoleStudent)
 	loc := testLocale()
 
-	m := newAdminDashboardWithErr(database, nil, loc, "something broke", 80, 24)
+	m := newAdminDashboardWithErr(database, loc, "something broke", 80, 24)
 	view := m.View()
 
 	assertViewNonEmpty(t, "dashboard with error", view)
@@ -132,35 +84,14 @@ func TestAdminDashboard_View_FlashError(t *testing.T) {
 	}
 }
 
-func TestAdminApp_FirstRunFreeModeUsesLearnerSetup(t *testing.T) {
+func TestAdminApp_FirstRunUsesAdminSetup(t *testing.T) {
 	database := testDB(t)
 
-	app := NewAdminApp("starter", database, nil, t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "achievements.yaml"), 80, 24)
+	app := NewAdminApp("starter", database, t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), "achievements.yaml"), 80, 24)
 	view := stripANSI(app.View())
 
-	if !strings.Contains(view, "Learner username:") {
-		t.Fatalf("free first-run should use learner setup copy, got:\n%s", view)
-	}
-	if strings.Contains(view, "Admin username:") {
-		t.Fatalf("free first-run should not use admin setup copy, got:\n%s", view)
-	}
-}
-
-func TestLicenseSummaryScreen_View(t *testing.T) {
-	lic := &license.State{
-		Licensed:              true,
-		Licensee:              "Acme School",
-		UnlockedCourses:       []string{"c1"},
-		HasInterviewQuestions: true,
-	}
-
-	screen := NewLicenseSummaryScreen(testLocale(), lic, nil, 80, 24)
-	view := stripANSI(screen.View())
-
-	for _, want := range []string{"License Summary", "Premium", "Acme School", "1 course(s)", "interviews"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("license summary missing %q, got:\n%s", want, view)
-		}
+	if !strings.Contains(view, "Admin username:") {
+		t.Fatalf("first-run should use admin setup copy, got:\n%s", view)
 	}
 }
 
@@ -198,7 +129,7 @@ func TestAdminStudentList_View_Empty(t *testing.T) {
 func TestAdminAddStudent_Flow(t *testing.T) {
 	database := testDB(t)
 
-	m := newAdminAddStudent(database, nil, nil, 80, 24)
+	m := newAdminAddStudent(database, nil, 80, 24)
 
 	// Type a username into the text input.
 	m.input.SetValue("testuser")
@@ -237,7 +168,7 @@ func TestAdminAddStudent_Flow(t *testing.T) {
 func TestAdminAddStudent_EmptyName(t *testing.T) {
 	database := testDB(t)
 
-	m := newAdminAddStudent(database, nil, nil, 80, 24)
+	m := newAdminAddStudent(database, nil, 80, 24)
 
 	// Press enter with empty username.
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -245,29 +176,6 @@ func TestAdminAddStudent_EmptyName(t *testing.T) {
 
 	if m2.msg == "" {
 		t.Error("expected error message for empty username")
-	}
-}
-
-func TestAdminAddStudent_LicenseSeatLimit(t *testing.T) {
-	database := testDB(t)
-	_ = database.CreateUser("existing", "pw", db.RoleStudent)
-
-	lic := &license.State{
-		Licensed:    true,
-		MaxStudents: 1,
-	}
-
-	m := newAdminAddStudent(database, lic, nil, 80, 24)
-	m.input.SetValue("newuser")
-
-	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m2 := model.(*adminAddStudentModel)
-
-	if m2.msg == "" {
-		t.Error("expected license seat limit error message")
-	}
-	if !strings.Contains(stripANSI(m2.msg), "max") {
-		t.Errorf("license limit message should mention limit: %q", m2.msg)
 	}
 }
 
@@ -408,7 +316,7 @@ func TestAdminAchievements_View_Create(t *testing.T) {
 func TestAdminExport_View(t *testing.T) {
 	database := testDB(t)
 
-	m := newAdminExport(database, nil, 80, 24)
+	m := newAdminExport(database, 80, 24)
 	view := m.View()
 
 	assertViewNonEmpty(t, "export", view)
@@ -441,7 +349,7 @@ func TestAdminApp_Navigation(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	// Initial view should be the dashboard.
 	view := app.View()
@@ -492,7 +400,7 @@ func TestAdminApp_StudentsNavigate(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	// Navigate to student list via message.
 	model, _ := app.Update(NavigateToAdminStudents{})
@@ -513,7 +421,7 @@ func TestAdminApp_CoursesNavigate(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminCourses{})
 	app2 := model.(*AdminApp)
@@ -534,7 +442,7 @@ func TestAdminApp_AchievementsNavigate(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminAchievements{})
 	app2 := model.(*AdminApp)
@@ -555,7 +463,7 @@ func TestAdminApp_ExportNavigate(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminExport{})
 	app2 := model.(*AdminApp)
@@ -577,7 +485,7 @@ func TestAdminApp_StudentDetailNavigate(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminStudentDetail{Username: "dave"})
 	app2 := model.(*AdminApp)
@@ -598,7 +506,7 @@ func TestAdminApp_LessonCreateNavigate(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminLessonCreate{})
 	app2 := model.(*AdminApp)
@@ -619,7 +527,7 @@ func TestAdminApp_LessonImportNavigate(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminLessonImport{})
 	app2 := model.(*AdminApp)
@@ -640,7 +548,7 @@ func TestAdminApp_AddStudentNavigate(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminAddStudent{})
 	app2 := model.(*AdminApp)
@@ -661,7 +569,7 @@ func TestAdminApp_DashboardBackFromStudents(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminStudents{})
 	app2 := model.(*AdminApp)
@@ -686,7 +594,7 @@ func TestAdminApp_StudentToggle(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(adminStudentToggleMsg{username: "eve", enabled: false})
 	app2 := model.(*AdminApp)
@@ -714,7 +622,7 @@ func TestAdminApp_PasswordResetDoneMsg(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(adminPasswordResetDoneMsg{})
 	app2 := model.(*AdminApp)
@@ -731,7 +639,7 @@ func TestAdminApp_ChangeLangMsg(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(changeLangMsg{lang: "en"})
 	_ = model
@@ -749,7 +657,7 @@ func TestAdminApp_WindowSizeMsg(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	app2 := model.(*AdminApp)
@@ -770,7 +678,7 @@ func TestAdminApp_WindowSizeMsg_Zero(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 0, Height: 0})
 	app2 := model.(*AdminApp)
@@ -788,7 +696,7 @@ func TestAdminApp_NavigateToStudentView(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	_, cmd := app.Update(navigateToStudentView{})
 
@@ -808,7 +716,7 @@ func TestAdminApp_LaunchStudentUsername(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	if app.LaunchStudentUsername() != "admin" {
 		t.Errorf("LaunchStudentUsername = %q, want admin", app.LaunchStudentUsername())
@@ -823,7 +731,7 @@ func TestAdminApp_WantsRelaunch(t *testing.T) {
 	coursesDir := t.TempDir()
 	achFile := filepath.Join(t.TempDir(), "achievements.yaml")
 
-	app := NewAdminApp("admin", database, nil, lessonsDir, coursesDir, achFile, 80, 24)
+	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	if app.WantsRelaunch() {
 		t.Error("WantsRelaunch should be false initially")
@@ -842,7 +750,7 @@ func TestAdminDashboard_KeySendsNavigateToStudents(t *testing.T) {
 	_ = database.CreateUser("alice", "pw", db.RoleStudent)
 	loc := testLocale()
 
-	m := newAdminDashboard(database, nil, loc, 80, 24)
+	m := newAdminDashboard(database, loc, 80, 24)
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if cmd == nil {
@@ -860,7 +768,7 @@ func TestAdminDashboard_KeySendsQuit(t *testing.T) {
 	_ = database.CreateUser("alice", "pw", db.RoleStudent)
 	loc := testLocale()
 
-	m := newAdminDashboard(database, nil, loc, 80, 24)
+	m := newAdminDashboard(database, loc, 80, 24)
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	if cmd == nil {
@@ -898,7 +806,7 @@ func TestAdminDashboard_ShortcutKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.key), func(t *testing.T) {
-			m := newAdminDashboard(database, nil, loc, 80, 24)
+			m := newAdminDashboard(database, loc, 80, 24)
 			_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{tt.key}})
 			if cmd == nil {
 				t.Fatalf("expected non-nil cmd for key %q", string(tt.key))
@@ -1050,7 +958,7 @@ func TestAdminAchievements_BackKey(t *testing.T) {
 
 func TestAdminExport_BackKey(t *testing.T) {
 	database := testDB(t)
-	m := newAdminExport(database, nil, 80, 24)
+	m := newAdminExport(database, 80, 24)
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	if cmd == nil {

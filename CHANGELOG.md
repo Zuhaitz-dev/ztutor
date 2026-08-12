@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.2.0 -- Fully open: licensing removed
+
+### Added
+- Everything is now open. All courses and lessons are available to every user.
+- First account created on a fresh server is always the admin account.
+
+### Removed
+- License system (`internal/license`): tiers, premium gating, seat limits, interview gating, license entry/summary screens.
+- Encrypted `.course` packages (`internal/crypt`, `cmd/coursepack`): courses are plain directories.
+- `cmd/licensegen` and its runtime artifacts (`dev_license_keys.json`, `license_test.key`, `license_test_school.key`).
+- Patron/credits tiers (`Maecenas` section in the Credits screen).
+- `enrollment.required` gating in course.yaml and `premium` lesson badges.
+- `ZTUTOR_LICENSE_PUBKEY` / `ZTUTOR_LICENSE_FILE` env and config plumbing, Makefile targets, Docker/service wiring, and `LICENSE-COMMERCIAL`.
+- `license_redemptions` database table (dropped by a new migration).
+
+### Changed
+- `premium` and `enrollment` keys in existing course content are ignored (harmless).
+- Connect screen no longer offers a license entry option.
+
 ## v0.1.18 -- GDB in TUI, course fixes, content checks, versioning
 
 ### Added

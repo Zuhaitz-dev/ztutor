@@ -1,6 +1,5 @@
 ---
 difficulty: beginner
-premium: false
 tags: [io, streams, posix, multiplexing, git, dup2, isatty, syslog]
 tutorial:
   - "Every POSIX process starts with three open file descriptors: stdin (0), stdout (1), stderr (2)."

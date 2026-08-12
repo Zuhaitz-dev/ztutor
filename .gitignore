@@ -1,8 +1,6 @@
 # Binaries
 /ztutor
 /ztutord
-/licensegen
-/coursepack
 
 # Runtime state
 *.db
@@ -11,17 +9,10 @@
 ztutor_host_key
 ztutor_host_key.pub
 *.key
-!license_test.key
-!license_test_school.key
-# Development keys (never commit to production)
-dev_license_keys.json
 *.pem
 
 # Secrets
 .env
-
-# Encrypted course packages (binary blobs, not for VCS)
-*.course
 
 # Courses are content assets, distributed separately from the platform.
 # Module 1 of the C course is bundled as the free starter content.

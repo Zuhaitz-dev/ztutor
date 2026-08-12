@@ -113,7 +113,9 @@ func fetchLatestRelease() (*LatestInfo, error) {
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
-			if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
+			// Retry on any transport-level network error (timeouts, resets,
+			// refused connections) — all are plausibly transient.
+			if _, ok := err.(net.Error); ok {
 				time.Sleep(time.Duration(1<<uint(attempt)) * 250 * time.Millisecond)
 				continue
 			}

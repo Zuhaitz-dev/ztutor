@@ -162,39 +162,3 @@ func TestLoadCourse_Defaults(t *testing.T) {
 		t.Fatalf("sections = %d, want 1 (legacy single section)", len(c.Sections))
 	}
 }
-
-func TestLoadCourse_PremiumFlagSetsFreemium(t *testing.T) {
-	dir := t.TempDir()
-	sec := filepath.Join(dir, "lessons")
-	os.MkdirAll(sec, 0755)
-
-	free := filepath.Join(sec, "01-free")
-	os.MkdirAll(free, 0755)
-	os.WriteFile(filepath.Join(free, "lesson.md"), []byte("# Free\n\nContent."), 0644)
-
-	premium := filepath.Join(sec, "02-premium")
-	os.MkdirAll(premium, 0755)
-	os.WriteFile(filepath.Join(premium, "lesson.md"), []byte("---\npremium: true\n---\n# Premium\n\nContent."), 0644)
-
-	manifest := `id: test
-title: Test
-language: c
-order: 1
-toolchain:
-  source_extension: .c
-sections:
-  - id: main
-    title: Main
-    type: exercises
-    dir: lessons
-`
-	os.WriteFile(filepath.Join(dir, "course.yaml"), []byte(manifest), 0644)
-
-	c, err := LoadCourseLang(dir, "en")
-	if err != nil {
-		t.Fatalf("LoadCourse: %v", err)
-	}
-	if !c.HasFreemium {
-		t.Error("HasFreemium = false, want true (course has a premium lesson)")
-	}
-}

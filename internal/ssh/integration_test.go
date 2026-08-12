@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"ztutor/internal/db"
-	"ztutor/internal/license"
 
 	tea "github.com/charmbracelet/bubbletea"
 	gossh "golang.org/x/crypto/ssh"
@@ -30,10 +29,10 @@ func (m holdModel) View() string                            { return "" }
 
 func newTestTUI() *TUIProvider {
 	return &TUIProvider{
-		NewStudentApp: func(username, coursesDir, lessonsDir string, db *db.DB, license *license.State, width, height int, keymap string) tea.Model {
+		NewStudentApp: func(username, coursesDir, lessonsDir string, db *db.DB, width, height int, keymap string) tea.Model {
 			return dummyModel{}
 		},
-		NewAdminApp: func(username string, db *db.DB, license *license.State, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
+		NewAdminApp: func(username string, db *db.DB, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
 			return dummyModel{}
 		},
 		LoadAchievements: func(path string) {},
@@ -282,11 +281,11 @@ func TestServer_AdminUser_RoutesToAdminTUI(t *testing.T) {
 	requireTCPListener(t)
 	var adminCalled, studentCalled bool
 	tui := &TUIProvider{
-		NewStudentApp: func(username, coursesDir, lessonsDir string, d *db.DB, lic *license.State, width, height int, keymap string) tea.Model {
+		NewStudentApp: func(username, coursesDir, lessonsDir string, d *db.DB, width, height int, keymap string) tea.Model {
 			studentCalled = true
 			return dummyModel{}
 		},
-		NewAdminApp: func(username string, d *db.DB, lic *license.State, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
+		NewAdminApp: func(username string, d *db.DB, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
 			adminCalled = true
 			return dummyModel{}
 		},
@@ -443,10 +442,10 @@ func TestServer_MaxConns(t *testing.T) {
 
 	// Use holdModel so the first session keeps the semaphore slot occupied.
 	holdTUI := &TUIProvider{
-		NewStudentApp: func(username, coursesDir, lessonsDir string, d *db.DB, lic *license.State, width, height int, keymap string) tea.Model {
+		NewStudentApp: func(username, coursesDir, lessonsDir string, d *db.DB, width, height int, keymap string) tea.Model {
 			return holdModel{}
 		},
-		NewAdminApp: func(username string, d *db.DB, lic *license.State, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
+		NewAdminApp: func(username string, d *db.DB, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
 			return dummyModel{}
 		},
 		LoadAchievements: func(path string) {},

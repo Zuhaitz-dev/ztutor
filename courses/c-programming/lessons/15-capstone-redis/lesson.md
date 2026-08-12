@@ -1,6 +1,5 @@
 ---
 difficulty: advanced
-premium: false
 tags: [capstone, parsing, networking, redis, pointers, state-machine, sds, event-loop, resp3, security]
 tutorial:
   - "Network sockets deliver data in chunks, not complete messages. A parser must handle partial data arriving across multiple reads."

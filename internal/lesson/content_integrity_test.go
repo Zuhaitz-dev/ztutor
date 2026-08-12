@@ -136,7 +136,6 @@ func TestContent_FrontmatterValid(t *testing.T) {
 	type fm struct {
 		Difficulty string   `yaml:"difficulty"`
 		Tags       []string `yaml:"tags"`
-		Premium    bool     `yaml:"premium"`
 	}
 
 	for _, dir := range findLessonDirs(t) {

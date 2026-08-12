@@ -97,11 +97,6 @@ func (ls *LessonScreen) View() string {
 	titleSt := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent))
 	titleParts := []string{titleSt.Render(ls.lesson.Title)}
 
-	if ls.lesson.IsPremium {
-		premSt := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAmber)).Bold(true)
-		titleParts = append(titleParts, premSt.Render(ls.loc.T("lesson.premium_badge")))
-	}
-
 	if len(ls.lesson.Companies) > 0 {
 		tagSt := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(ColorHex)).

@@ -1,6 +1,5 @@
 ---
 difficulty: advanced
-premium: false
 tags: [preprocessor, conditional-compilation, linux, kernel, architecture, portability]
 tutorial:
   - "#ifdef includes or excludes entire code blocks at compile time: excluded code is completely absent from the binary."

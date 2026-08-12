@@ -1,6 +1,5 @@
 ---
 difficulty: beginner
-premium: false
 tags: [scope, debugging, control-flow, linux, git, static, lifetime]
 tutorial:
   - "In C, every pair of curly braces introduces a new block scope. Variables declared inside are invisible outside."

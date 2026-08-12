@@ -14,9 +14,6 @@ WorkingDirectory=/opt/ztutor
 Environment=ZTUTOR_DATA_DIR=/var/lib/ztutor
 Environment=ZTUTOR_COURSES_DIR=/opt/ztutor/courses
 
-# License verification public key (replace with your actual key)
-# EnvironmentFile=/etc/ztutor/env
-
 Restart=on-failure
 RestartSec=5
 

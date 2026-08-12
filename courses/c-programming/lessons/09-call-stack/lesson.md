@@ -1,6 +1,5 @@
 ---
 difficulty: intermediate
-premium: false
 tags: [memory, assembly, gdb, stack, debugging, internals, security]
 tutorial:
   - "The call stack grows downward. Each function call pushes a frame containing the return address and local variables."

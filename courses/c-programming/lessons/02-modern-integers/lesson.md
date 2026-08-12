@@ -1,6 +1,5 @@
 ---
 difficulty: beginner
-premium: false
 tags: [types, memory, stdint, serialization, sqlite, endianness, overflow]
 tutorial:
   - "The size of 'int' and 'long' is not defined by the C standard: it depends on the compiler and target architecture."

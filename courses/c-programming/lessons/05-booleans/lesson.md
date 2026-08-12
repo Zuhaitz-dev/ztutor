@@ -1,6 +1,5 @@
 ---
 difficulty: beginner
-premium: false
 tags: [types, history, standards, neovim, vim, flags, short-circuit]
 tutorial:
   - "C89 had no boolean type. Developers used int: 0 for false, anything else for true."

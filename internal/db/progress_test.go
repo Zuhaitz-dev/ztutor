@@ -421,8 +421,8 @@ func TestMigrate_BootstrapsExistingSchema(t *testing.T) {
 	}
 	defer db.Close()
 
-	if !tableHasColumn(db.conn, "license_redemptions", "license_blob") {
-		t.Fatal("license_redemptions migration did not apply")
+	if tableHasColumn(db.conn, "license_redemptions", "license_blob") {
+		t.Fatal("license_redemptions table should be dropped (licensing removed)")
 	}
 	var maxVersion int
 	if err := db.conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&maxVersion); err != nil {

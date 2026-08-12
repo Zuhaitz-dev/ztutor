@@ -7,7 +7,6 @@ import (
 
 	"ztutor/internal/db"
 	"ztutor/internal/i18n"
-	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -55,11 +54,9 @@ type navigateToStudentView struct{}
 type AdminApp struct {
 	username         string
 	db               *db.DB
-	lic              *license.State
 	lessonsDir       string
 	coursesDir       string
 	achievementsFile string
-	freeMode         bool
 	uiLang           string
 	loc              *i18n.Locale
 
@@ -71,8 +68,7 @@ type AdminApp struct {
 func (a *AdminApp) WantsRelaunch() bool  { return a.LaunchStudent }
 func (a *AdminApp) RelaunchUser() string { return a.LaunchStudentUsername() }
 
-func NewAdminApp(username string, database *db.DB, lic *license.State, lessonsDir, coursesDir, achievementsFile string, width, height int) *AdminApp {
-	freeMode := lic == nil || !lic.Licensed
+func NewAdminApp(username string, database *db.DB, lessonsDir, coursesDir, achievementsFile string, width, height int) *AdminApp {
 	uiLang, _ := database.GetUserSetting(username, "lang")
 	if uiLang == "" {
 		uiLang = "en"
@@ -80,11 +76,9 @@ func NewAdminApp(username string, database *db.DB, lic *license.State, lessonsDi
 	app := &AdminApp{
 		username:         username,
 		db:               database,
-		lic:              lic,
 		lessonsDir:       lessonsDir,
 		coursesDir:       coursesDir,
 		achievementsFile: achievementsFile,
-		freeMode:         freeMode,
 		uiLang:           uiLang,
 		loc:              i18n.New(uiLang),
 		sized:            sized{Width: width, Height: height},
@@ -96,9 +90,9 @@ func NewAdminApp(username string, database *db.DB, lic *license.State, lessonsDi
 		hasUsers = true // conservative default: show dashboard
 	}
 	if !hasUsers {
-		app.current = newAdminSetup(app.loc, width, height, freeMode)
+		app.current = newAdminSetup(app.loc, width, height)
 	} else {
-		app.current = newAdminDashboard(database, lic, app.loc, width, height)
+		app.current = newAdminDashboard(database, app.loc, width, height)
 	}
 
 	return app
@@ -126,10 +120,10 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.loc = next
 		switch a.current.(type) {
 		case *adminDashboardModel:
-			a.current = newAdminDashboard(a.db, a.lic, a.loc, a.Width, a.Height)
+			a.current = newAdminDashboard(a.db, a.loc, a.Width, a.Height)
 			return a, a.current.Init()
 		case *adminSetupModel:
-			a.current = newAdminSetup(a.loc, a.Width, a.Height, a.freeMode)
+			a.current = newAdminSetup(a.loc, a.Width, a.Height)
 			return a, a.current.Init()
 		}
 		// Other admin screens don't carry locale; language takes effect on
@@ -148,19 +142,11 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 
 	case adminSetupDoneMsg:
-		if a.freeMode {
-			if err := a.db.CreateUser(msg.username, "", db.RoleStudent); err != nil {
-				return a, nil
-			}
-			a.username = msg.username
-			a.LaunchStudent = true
-			return a, tea.Quit
-		}
 		if err := a.db.CreateUser(msg.username, "", db.RoleAdmin); err != nil {
 			return a, nil
 		}
 		a.username = msg.username
-		a.current = newAdminDashboard(a.db, a.lic, a.loc, a.Width, a.Height)
+		a.current = newAdminDashboard(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case adminStudentAddedMsg:
@@ -177,7 +163,7 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.current.Init()
 
 	case adminLessonSavedMsg:
-		a.current = newAdminDashboard(a.db, a.lic, a.loc, a.Width, a.Height)
+		a.current = newAdminDashboard(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case changeLangMsg:
@@ -193,16 +179,16 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch a.current.(type) {
 		case *adminDashboardModel:
-			a.current = newAdminDashboard(a.db, a.lic, a.loc, a.Width, a.Height)
+			a.current = newAdminDashboard(a.db, a.loc, a.Width, a.Height)
 			return a, a.current.Init()
 		case *adminSetupModel:
-			a.current = newAdminSetup(a.loc, a.Width, a.Height, a.freeMode)
+			a.current = newAdminSetup(a.loc, a.Width, a.Height)
 			return a, a.current.Init()
 		}
 		return a, nil
 
 	case NavigateToAdminDashboard:
-		a.current = newAdminDashboard(a.db, a.lic, a.loc, a.Width, a.Height)
+		a.current = newAdminDashboard(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case NavigateToAdminStudents:
@@ -210,7 +196,7 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.current.Init()
 
 	case NavigateToAdminAddStudent:
-		a.current = newAdminAddStudent(a.db, a.lic, a.loc, a.Width, a.Height)
+		a.current = newAdminAddStudent(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case NavigateToAdminPasswordReset:
@@ -234,7 +220,7 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.current.Init()
 
 	case NavigateToAdminExport:
-		a.current = newAdminExport(a.db, a.lic, a.Width, a.Height)
+		a.current = newAdminExport(a.db, a.Width, a.Height)
 		return a, a.current.Init()
 
 	case NavigateToAdminCourses:
@@ -276,7 +262,7 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sectionDir := filepath.Dir(msg.Dir)
 		m, err := newAdminLessonEdit(sectionDir, msg.Dir, a.Width, a.Height)
 		if err != nil {
-			a.current = newAdminDashboardWithErr(a.db, a.lic, a.loc, err.Error(), a.Width, a.Height)
+			a.current = newAdminDashboardWithErr(a.db, a.loc, err.Error(), a.Width, a.Height)
 			return a, a.current.Init()
 		}
 		a.current = m
@@ -454,22 +440,18 @@ type adminSetupModel struct {
 	mascotFrame int
 	rainCols    []rainCol
 	rainH       int
-	freeMode    bool
 }
 
-func newAdminSetup(loc *i18n.Locale, w, h int, freeMode bool) *adminSetupModel {
+func newAdminSetup(loc *i18n.Locale, w, h int) *adminSetupModel {
 	if loc == nil {
 		loc = i18n.New("en")
 	}
 	ti := textinput.New()
-	ti.Placeholder = "learner"
-	if !freeMode {
-		ti.Placeholder = "admin"
-	}
+	ti.Placeholder = "admin"
 	ti.CharLimit = 32
 	ti.Width = 30
 	ti.Focus()
-	return &adminSetupModel{input: ti, loc: loc, sized: sized{Width: w, Height: h}, freeMode: freeMode}
+	return &adminSetupModel{input: ti, loc: loc, sized: sized{Width: w, Height: h}}
 }
 
 func (m *adminSetupModel) Init() tea.Cmd {
@@ -493,10 +475,7 @@ func (m *adminSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			name := strings.TrimSpace(m.input.Value())
 			if name == "" {
-				name = "learner"
-				if !m.freeMode {
-					name = "admin"
-				}
+				name = "admin"
 			}
 			return m, backCmd(adminSetupDoneMsg{username: name})
 		case "ctrl+c", "esc":
@@ -523,10 +502,7 @@ func (m *adminSetupModel) View() string {
 		border = border.Align(lipgloss.Right)
 	}
 
-	setupPrefix := "admin.setup.business."
-	if m.freeMode {
-		setupPrefix = "admin.setup.free."
-	}
+	setupPrefix := "admin.setup."
 	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent)).Render(T(setupPrefix + "title"))
 	subtitle := dim(T(setupPrefix + "subtitle"))
 	prompt := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBody)).Render(T(setupPrefix + "prompt"))
@@ -572,7 +548,6 @@ var adminDashboardSnippets = []string{
 
 type adminDashboardModel struct {
 	db  *db.DB
-	lic *license.State
 	loc *i18n.Locale
 	sized
 	mascotFrame int
@@ -581,15 +556,15 @@ type adminDashboardModel struct {
 	flashErr    string
 }
 
-func newAdminDashboard(database *db.DB, lic *license.State, loc *i18n.Locale, w, h int) *adminDashboardModel {
+func newAdminDashboard(database *db.DB, loc *i18n.Locale, w, h int) *adminDashboardModel {
 	if loc == nil {
 		loc = i18n.New("en")
 	}
-	return &adminDashboardModel{db: database, lic: lic, loc: loc, sized: sized{Width: w, Height: h}}
+	return &adminDashboardModel{db: database, loc: loc, sized: sized{Width: w, Height: h}}
 }
 
-func newAdminDashboardWithErr(database *db.DB, lic *license.State, loc *i18n.Locale, errMsg string, w, h int) *adminDashboardModel {
-	m := newAdminDashboard(database, lic, loc, w, h)
+func newAdminDashboardWithErr(database *db.DB, loc *i18n.Locale, errMsg string, w, h int) *adminDashboardModel {
+	m := newAdminDashboard(database, loc, w, h)
 	m.flashErr = errMsg
 	return m
 }
@@ -666,35 +641,6 @@ func (m *adminDashboardModel) View() string {
 	stats := dim(T("admin.students")) + "  " + numStyle.Render(fmt.Sprintf("%d", studentCount)) + "\n" +
 		dim(T("admin.lessons_done")) + "  " + numStyle.Render(fmt.Sprintf("%d", totalLessons))
 
-	licInfo := bold(T("admin.license"))
-	if m.lic != nil && m.lic.Licensed {
-		licInfo += " " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Render(forceLTRText(m.lic.Licensee))
-		if m.lic.MaxStudents > 0 {
-			atCap := studentCount >= m.lic.MaxStudents
-			capStr := T("admin.seats", studentCount, m.lic.MaxStudents)
-			if atCap {
-				licInfo += "\n  " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAmber)).Render(capStr)
-			} else {
-				licInfo += "\n  " + dim(capStr)
-			}
-		}
-		if !m.lic.ExpiresAt.IsZero() {
-			licInfo += "\n  " + T("admin.expires", forceLTRText(m.lic.ExpiresAt.Format("2006-01-02")))
-		}
-		var feats []string
-		if len(m.lic.UnlockedCourses) > 0 {
-			feats = append(feats, "premium")
-		}
-		if m.lic.HasMultiUser {
-			feats = append(feats, "multi-user")
-		}
-		if len(feats) > 0 {
-			licInfo += "\n  " + T("admin.features", forceLTRText(strings.Join(feats, ", ")))
-		}
-	} else {
-		licInfo += " " + dim(T("admin.free_tier"))
-	}
-
 	hl := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorHex))
 	menuItem := func(key, label string) string {
 		k := dim(key+".") + " " + hl.Render(label)
@@ -721,7 +667,7 @@ func (m *adminDashboardModel) View() string {
 		errLine = "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorError)).Render("err: "+m.flashErr)
 	}
 	langHint := "\n\n" + helpBar(T("help.language"), T("admin.menu.quit"))
-	leftContent := title + "\n\n" + stats + "\n\n" + licInfo + "\n\n" + menu + errLine + langHint
+	leftContent := title + "\n\n" + stats + "\n\n" + menu + errLine + langHint
 
 	leftPanel := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -763,14 +709,7 @@ func (m *adminDashboardModel) View() string {
 		return badge + " " + dim(label) + " " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBody)).Render(val)
 	}
 
-	licensed := m.lic != nil && m.lic.Licensed
-	serverStatus := status(T("admin.status.license"), func() string {
-		if licensed {
-			return m.lic.Licensee
-		}
-		return T("admin.status.free")
-	}(), licensed) + "\n" +
-		status(T("admin.status.students"), T("admin.status.registered", studentCount), studentCount > 0) + "\n" +
+	serverStatus := status(T("admin.status.students"), T("admin.status.registered", studentCount), studentCount > 0) + "\n" +
 		status(T("admin.status.lessons"), T("admin.status.completed", totalLessons), totalLessons > 0)
 
 	// Top student from leaderboard.

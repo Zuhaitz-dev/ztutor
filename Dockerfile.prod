@@ -47,7 +47,7 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 
 COPY --from=builder /ztutord /usr/local/bin/ztutord
 
-# Data directory: SSH host key, SQLite DB, license file.
+# Data directory: SSH host key, SQLite DB.
 VOLUME /data
 ENV ZTUTOR_DATA_DIR=/data
 

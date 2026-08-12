@@ -1,6 +1,5 @@
 ---
 difficulty: intermediate
-premium: false
 tags: [history, performance, control-flow, optimization, simd, compilers]
 tutorial:
   - "Loop overhead (the branch instruction at the end of each iteration) can dominate execution time in tight inner loops."

@@ -89,7 +89,6 @@ func TestLessonScreen_Init_WithExercise(t *testing.T) {
 func TestLessonView_RTLHeaderMirrorsInlineOrder(t *testing.T) {
 	ls := NewLessonScreen(lesson.Lesson{
 		Title:      "Pointers",
-		IsPremium:  true,
 		Companies:  []string{"Acme"},
 		Difficulty: "beginner",
 		Tags:       []string{"memory", "arrays"},
@@ -103,12 +102,7 @@ func TestLessonView_RTLHeaderMirrorsInlineOrder(t *testing.T) {
 	}
 	header := lines[0]
 	meta := lines[1]
-	badgeIdx := strings.Index(header, "مميز")
-	if badgeIdx < 0 {
-		badgeIdx = strings.Index(header, "[")
-	}
-	if !(strings.Index(header, "Acme") < badgeIdx &&
-		badgeIdx < strings.Index(header, "Pointers")) {
+	if !(strings.Index(header, "Acme") < strings.Index(header, "Pointers")) {
 		t.Fatalf("rtl header should place title last in inline order, got %q", header)
 	}
 	if !(strings.Index(meta, "memory  arrays") < strings.Index(meta, "beginner")) {

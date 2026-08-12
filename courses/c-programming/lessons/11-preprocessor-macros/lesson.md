@@ -1,6 +1,5 @@
 ---
 difficulty: intermediate
-premium: false
 tags: [preprocessor, macros, compilation, security, openssl, x-macros, variadic]
 tutorial:
   - "The preprocessor runs before compilation. It performs text substitution: no types, no scoping, no runtime cost."

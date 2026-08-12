@@ -1,6 +1,5 @@
 ---
 difficulty: beginner
-premium: false
 tags: [io, streams, eof, posix, coreutils, buffering]
 tutorial:
   - "getchar() returns int, not char. EOF is -1, which doesn't fit in a char on most platforms: it gets confused with 0xFF."

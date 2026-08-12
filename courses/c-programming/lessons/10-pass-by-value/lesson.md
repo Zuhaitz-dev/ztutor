@@ -1,6 +1,5 @@
 ---
 difficulty: intermediate
-premium: false
 tags: [pointers, api-design, curl, memory, state-mutation, const, restrict]
 tutorial:
   - "C always passes by value: functions receive copies. Modifying a copy does not affect the original."

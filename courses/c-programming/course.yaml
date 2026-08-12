@@ -4,8 +4,6 @@ description: "C for developers who already code. Learn C by reading real codebas
 language: c
 order: 0
 layout: path
-enrollment:
-  required: false
 sections:
   - id: module-01-foundations
     title: "Module 1: Modern Foundations"

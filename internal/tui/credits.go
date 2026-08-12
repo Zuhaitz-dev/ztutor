@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,26 +21,8 @@ type creditEntry struct {
 	GitHub string `yaml:"github"`
 }
 
-// creditTier defines the visual structure of one patron tier.
-// The entries (names) are loaded from config/credits.yaml at runtime.
-type creditTier struct {
-	LabelKey string // locale key → translated tier label
-	YAMLKey  string // key in credits.yaml
-	Color    lipgloss.Color
-	PerRow   int
-}
-
-var maecenasTiers = []creditTier{
-	{LabelKey: "credits.tier.archon", YAMLKey: "archon", Color: "220", PerRow: 1},
-	{LabelKey: "credits.tier.patron", YAMLKey: "patron", Color: "183", PerRow: 2},
-	{LabelKey: "credits.tier.supporter", YAMLKey: "supporter", Color: "109", PerRow: 3},
-}
-
 // creditsFileData mirrors the structure of config/credits.yaml.
 type creditsFileData struct {
-	Archon       []creditEntry `yaml:"archon"`
-	Patron       []creditEntry `yaml:"patron"`
-	Supporter    []creditEntry `yaml:"supporter"`
 	Contributors []creditEntry `yaml:"contributors"`
 }
 
@@ -59,14 +40,13 @@ func loadCreditsFile() creditsFileData {
 	return cfg
 }
 
-// CreditsScreen displays the Maecenas patron tiers and contributor list.
+// CreditsScreen displays the contributor list.
 // Names are loaded from config/credits.yaml; the screen is empty if the file
 // does not exist yet.
 type CreditsScreen struct {
 	sized
 	loc          *i18n.Locale
 	scroll       int
-	tierEntries  [][]creditEntry // parallel to maecenasTiers
 	contributors []creditEntry
 }
 
@@ -76,13 +56,8 @@ func NewCreditsScreen(width, height int, loc *i18n.Locale) *CreditsScreen {
 	}
 	cfg := loadCreditsFile()
 	return &CreditsScreen{
-		sized: sized{Width: width, Height: height},
-		loc:   loc,
-		tierEntries: [][]creditEntry{
-			cfg.Archon,
-			cfg.Patron,
-			cfg.Supporter,
-		},
+		sized:        sized{Width: width, Height: height},
+		loc:          loc,
 		contributors: cfg.Contributors,
 	}
 }
@@ -124,16 +99,6 @@ func spacedLabel(s string) string {
 	return strings.Join(parts, " ")
 }
 
-// creditsTierRule renders: ─── LABEL ──────────────────────────
-func creditsTierRule(label string, color lipgloss.Color, width int) string {
-	pad := "  " + label + "  "
-	styledPad := lipgloss.NewStyle().Foreground(color).Bold(true).Render(pad)
-	used := len([]rune(pad))
-	left := width / 4
-	right := max(0, width-used-left)
-	return dim(strings.Repeat("─", left)) + styledPad + dim(strings.Repeat("─", right))
-}
-
 func (cs *CreditsScreen) buildLines() []string {
 	T := cs.loc.T
 	var lines []string
@@ -143,52 +108,6 @@ func (cs *CreditsScreen) buildLines() []string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorAccent))
 	lines = append(lines, titleStyle.Render(spacedLabel(T("credits.title"))))
 	lines = append(lines, "")
-
-	// ── Maecenas section ───────────────────────────────────────────────────────
-	maeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorBody)).Bold(true)
-	lines = append(lines, maeStyle.Render(spacedLabel(T("credits.maecenas_header"))))
-	lines = append(lines, dim(strings.Repeat("─", w)))
-	lines = append(lines, "")
-
-	anyMaecenas := false
-	for i, tier := range maecenasTiers {
-		entries := cs.tierEntries[i]
-		if len(entries) == 0 {
-			continue
-		}
-		anyMaecenas = true
-
-		lines = append(lines, creditsTierRule(T(tier.LabelKey), tier.Color, w))
-		lines = append(lines, "")
-
-		if tier.PerRow == 1 {
-			star := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGold)).Bold(true).Render("★")
-			nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorGold)).Bold(true)
-			for _, e := range entries {
-				lines = append(lines, "  "+star+"  "+nameStyle.Render(e.Name)+"  "+star)
-			}
-		} else {
-			colW := w / tier.PerRow
-			nameStyle := lipgloss.NewStyle().Foreground(tier.Color)
-			for start := 0; start < len(entries); start += tier.PerRow {
-				var row strings.Builder
-				row.WriteString("  ")
-				for j := 0; j < tier.PerRow && start+j < len(entries); j++ {
-					if j > 0 {
-						row.WriteString("  ")
-					}
-					row.WriteString(nameStyle.Render(fmt.Sprintf("%-*s", colW-2, entries[start+j].Name)))
-				}
-				lines = append(lines, row.String())
-			}
-		}
-		lines = append(lines, "")
-	}
-
-	if !anyMaecenas {
-		lines = append(lines, "  "+dim(T("credits.maecenas_empty")))
-		lines = append(lines, "")
-	}
 
 	// ── Contributors section ───────────────────────────────────────────────────
 	lines = append(lines, dim(strings.Repeat("─", w)))

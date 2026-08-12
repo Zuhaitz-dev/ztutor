@@ -1,8 +1,6 @@
 package lesson
 
 import (
-	"bytes"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
@@ -10,7 +8,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"ztutor/internal/crypt"
 	"ztutor/internal/logutil"
 )
 
@@ -42,7 +39,6 @@ type Course struct {
 	Language    string
 	Sections    []Section
 
-	HasFreemium     bool
 	TotalLessons    int
 	TotalChallenges int
 	TotalQuizzes    int
@@ -52,16 +48,11 @@ type Course struct {
 	AvailableTools       []string
 	DefaultWidgets       []string
 	CourseIntro          []string
-	EnrollmentRequired   bool
 	ProgrammingLanguages []string
 
 	// Layout controls the TUI presentation mode for this course's lesson list.
 	// Defaults to CourseLayoutList when not specified in course.yaml.
 	Layout CourseLayout
-
-	// Encrypted is true when this course was loaded from an encrypted .course
-	// file. The TUI shows a distinct badge for encrypted courses.
-	Encrypted bool
 
 	// UILanguages lists the UI locale codes in which this course's content
 	// is available (e.g. ["en", "es", "ar"]).  Declared in course.yaml under
@@ -87,10 +78,6 @@ type courseManifest struct {
 	Language    string `yaml:"language"`
 	Order       int    `yaml:"order"`
 	Layout      string `yaml:"layout,omitempty"`
-
-	Enrollment struct {
-		Required bool `yaml:"required"`
-	} `yaml:"enrollment"`
 
 	UILanguages     []string            `yaml:"ui_languages,omitempty"`
 	DefaultWidgets  []string            `yaml:"default_widgets,omitempty"`
@@ -218,9 +205,6 @@ func LoadCourseLang(courseDir, lang string) (Course, error) {
 		c.TotalChallenges += len(s.Challenges)
 		for i := range s.Lessons {
 			l := &s.Lessons[i]
-			if l.IsPremium {
-				c.HasFreemium = true
-			}
 			if len(l.EnabledWidgets) == 0 && len(c.DefaultWidgets) > 0 {
 				l.EnabledWidgets = c.DefaultWidgets
 			}
@@ -248,7 +232,6 @@ func loadManifest(courseDir string, c *Course) (*courseManifest, bool) {
 		c.Description = m.Description
 		c.Order = m.Order
 		c.Language = m.Language
-		c.EnrollmentRequired = m.Enrollment.Required
 		c.UILanguages = m.UILanguages
 		if m.Toolchain.SourceExtension != "" {
 			c.SourceExtension = m.Toolchain.SourceExtension
@@ -308,112 +291,4 @@ func LoadAsSingleCourseLang(dir, lang string) ([]Course, error) {
 		return nil, err
 	}
 	return []Course{c}, nil
-}
-
-// LoadEncryptedCourse opens a .course file, verifies its manifest, and — if
-// courseKey is non-nil — decrypts and loads the course content. When courseKey
-// is nil, the manifest is still read and a Course with metadata is returned
-// (useful for showing the course in the menu before a license is obtained).
-func LoadEncryptedCourse(path, lang string, courseKey []byte) (*Course, error) {
-	bc, err := crypt.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer bc.Close()
-
-	// Read the manifest (plaintext, always readable).
-	var cm crypt.CourseManifest
-	if err := jsonUnmarshal(bc.Manifest(), &cm); err != nil {
-		return nil, err
-	}
-
-	if cm.CourseID == "" {
-		return nil, errInvalid("missing course_id in .course manifest")
-	}
-
-	// If we have a decryption key, extract and load.
-	if len(courseKey) == 32 {
-		// Decrypt payload.
-		var key [32]byte
-		copy(key[:], courseKey)
-		plaintext, err := bc.ReadPayload(key, cm.CourseID)
-		if err != nil {
-			return nil, err
-		}
-
-		// Extract to a temp directory.
-		tmpDir, err := os.MkdirTemp("", "ztutor-course-")
-		if err != nil {
-			return nil, err
-		}
-		defer os.RemoveAll(tmpDir)
-
-		if err := crypt.ExtractTarGz(bytes.NewReader(plaintext), tmpDir); err != nil {
-			return nil, err
-		}
-
-		// Load the extracted course.
-		c, err := LoadCourseLang(tmpDir, lang)
-		if err != nil {
-			return nil, err
-		}
-		c.Encrypted = true
-		// Override any auto-detected ID with the manifest's.
-		c.ID = cm.CourseID
-		return &c, nil
-	}
-
-	// No key: return metadata-only course (preview mode).
-	c := Course{
-		ID:        cm.CourseID,
-		Title:     cm.Title,
-		Language:  cm.Language,
-		Encrypted: true,
-	}
-	if c.Title == "" {
-		c.Title = c.ID
-	}
-	return &c, nil
-}
-
-// ScanEncryptedCourses scans dir for *.course files, loads them with the given
-// key, and returns courses not already present in the existing list (by ID).
-func ScanEncryptedCourses(dir, lang string, courseKey []byte, existing []Course) ([]Course, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, nil // not an error — maybe dir doesn't exist
-	}
-
-	seen := make(map[string]bool, len(existing))
-	for _, c := range existing {
-		seen[c.ID] = true
-	}
-
-	var courses []Course
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".course") {
-			continue
-		}
-		c, err := LoadEncryptedCourse(filepath.Join(dir, entry.Name()), lang, courseKey)
-		if err != nil {
-			logutil.Warn("course: skipping %s: %v", entry.Name(), err)
-			continue
-		}
-		if seen[c.ID] {
-			continue // directory version takes precedence
-		}
-		courses = append(courses, *c)
-		seen[c.ID] = true
-	}
-	return courses, nil
-}
-
-func errInvalid(msg string) error { return &invalidError{msg} }
-
-type invalidError struct{ msg string }
-
-func (e *invalidError) Error() string { return e.msg }
-
-func jsonUnmarshal(data []byte, v interface{}) error {
-	return json.Unmarshal(data, v)
 }

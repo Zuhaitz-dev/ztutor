@@ -1,6 +1,5 @@
 ---
 difficulty: intermediate
-premium: false
 tags: [build-systems, make, redis, automation, compilation, cmake, ninja, ccache]
 build: make
 build_output: redis-server

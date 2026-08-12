@@ -126,7 +126,7 @@ func TestSwitchSection_SetsCompatLine(t *testing.T) {
 			{ID: "quizzes", Type: "quizzes"},
 		},
 	}
-	m := NewMenuScreen([]lesson.Course{course}, nil, nil, nil, nil, "alice", 0, false, func(string) bool {
+	m := NewMenuScreen([]lesson.Course{course}, nil, nil, "alice", 0, false, func(string) bool {
 		return true
 	}, testLocale(), 80, 24)
 	model, _ := m.enterCourse(course)

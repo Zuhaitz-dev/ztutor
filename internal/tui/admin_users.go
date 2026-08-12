@@ -8,7 +8,6 @@ import (
 	"ztutor/internal/db"
 	"ztutor/internal/i18n"
 	"ztutor/internal/lesson"
-	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -159,14 +158,13 @@ func (m *adminStudentListModel) View() string {
 type adminAddStudentModel struct {
 	input textinput.Model
 	db    *db.DB
-	lic   *license.State
 	loc   *i18n.Locale
 	sized
 	msg         string
 	showPending bool // password shown, waiting for keypress to navigate
 }
 
-func newAdminAddStudent(database *db.DB, lic *license.State, loc *i18n.Locale, w, h int) *adminAddStudentModel {
+func newAdminAddStudent(database *db.DB, loc *i18n.Locale, w, h int) *adminAddStudentModel {
 	if loc == nil {
 		loc = i18n.New("en")
 	}
@@ -175,7 +173,7 @@ func newAdminAddStudent(database *db.DB, lic *license.State, loc *i18n.Locale, w
 	ti.CharLimit = 32
 	ti.Width = 30
 	ti.Focus()
-	return &adminAddStudentModel{input: ti, db: database, lic: lic, loc: loc, sized: sized{Width: w, Height: h}}
+	return &adminAddStudentModel{input: ti, db: database, loc: loc, sized: sized{Width: w, Height: h}}
 }
 
 func (m *adminAddStudentModel) Init() tea.Cmd { return nil }
@@ -196,18 +194,6 @@ func (m *adminAddStudentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if name == "" {
 				m.msg = exErrorStyle.Render("username cannot be empty")
 				return m, nil
-			}
-			if m.lic != nil && m.lic.MaxStudents > 0 {
-				count, err := m.db.CountUsers()
-				if err != nil {
-					logutil.Warn("admin: CountUsers: %v", err)
-					m.msg = exErrorStyle.Render("cannot verify seat limit — try again")
-					return m, nil
-				}
-				if count >= m.lic.MaxStudents {
-					m.msg = exErrorStyle.Render(fmt.Sprintf("license limit: max %d students", m.lic.MaxStudents))
-					return m, nil
-				}
 			}
 			pw := db.GenerateStudentPassword()
 			if err := m.db.CreateUser(name, pw, db.RoleStudent); err != nil {

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"ztutor/internal/db"
-	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 	"ztutor/internal/sandbox"
 
@@ -23,12 +22,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
 )
 
 type TUIProvider struct {
-	NewStudentApp    func(username, coursesDir, lessonsDir string, db *db.DB, license *license.State, width, height int, keymap string) tea.Model
-	NewAdminApp      func(username string, db *db.DB, license *license.State, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model
+	NewStudentApp    func(username, coursesDir, lessonsDir string, db *db.DB, width, height int, keymap string) tea.Model
+	NewAdminApp      func(username string, db *db.DB, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model
 	LoadAchievements func(path string)
 }
 
@@ -46,7 +44,6 @@ type Config struct {
 	DBPath           string
 	Addr             string
 	Keymap           string
-	License          *license.State
 	SetupToken       string
 	MaxConns         int // 0 = unlimited
 }
@@ -82,15 +79,6 @@ func New(cfg Config, tui *TUIProvider) (*Server, error) {
 
 	if cfg.AchievementsFile != "" {
 		tui.LoadAchievements(cfg.AchievementsFile)
-	}
-
-	if cfg.License != nil && cfg.License.Licensed {
-		logutil.Info("license: %s [tier=%s students=%d courses=%v multi=%v admin=%v interviews=%v]",
-			cfg.License.Licensee, cfg.License.ProductTier(), cfg.License.MaxStudents,
-			cfg.License.UnlockedCourses, cfg.License.HasMultiUser,
-			cfg.License.HasAdminUI, cfg.License.HasInterviewQuestions)
-	} else {
-		logutil.Info("license: none (free tier)")
 	}
 
 	return &Server{
@@ -186,13 +174,8 @@ func (s *Server) ListenAndServe() error {
 		}
 	} else {
 		tokenPreview := s.config.SetupToken[:20]
-		if s.config.License != nil && s.config.License.HasAdminUI {
-			logutil.Info("no users yet - business setup token prefix: %s...", tokenPreview)
-			logutil.Info("  connect to create the admin account: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
-		} else {
-			logutil.Info("no users yet - learner setup token prefix: %s...", tokenPreview)
-			logutil.Info("  connect to create the first learner account: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
-		}
+		logutil.Info("no users yet - setup token prefix: %s...", tokenPreview)
+		logutil.Info("  connect to create the first account: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
 	}
 
 	var sem chan struct{}
@@ -381,13 +364,6 @@ func (s *Server) handleSession(channel gossh.Channel, requests <-chan *gossh.Req
 	}
 }
 
-func setPTYSize(master *os.File, rows, cols int) {
-	unix.IoctlSetWinsize(int(master.Fd()), unix.TIOCSWINSZ, &unix.Winsize{ //nolint:errcheck
-		Row: uint16(rows),
-		Col: uint16(cols),
-	})
-}
-
 func colorProfileForTerm(termName string) termenv.Profile {
 	ck := os.Getenv("COLORTERM")
 	if ck == "truecolor" || ck == "24bit" {
@@ -412,7 +388,7 @@ func (s *Server) runAdminTUI(channel gossh.Channel, requests <-chan *gossh.Reque
 	lipgloss.SetColorProfile(colorProfileForTerm(termName))
 	curCols, curRows := cols, rows
 
-	app := s.tui.NewAdminApp(username, s.db, s.config.License, s.config.LessonsDir, s.config.CoursesDir, s.config.AchievementsFile, curCols, curRows)
+	app := s.tui.NewAdminApp(username, s.db, s.config.LessonsDir, s.config.CoursesDir, s.config.AchievementsFile, curCols, curRows)
 
 	p := tea.NewProgram(
 		app,
@@ -477,7 +453,6 @@ func (s *Server) runTUI(channel gossh.Channel, requests <-chan *gossh.Request, u
 	curCols, curRows := cols, rows
 
 	app := s.tui.NewStudentApp(username, s.config.CoursesDir, s.config.LessonsDir, s.db,
-		s.config.License,
 		curCols, curRows,
 		s.config.Keymap,
 	)

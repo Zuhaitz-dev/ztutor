@@ -48,7 +48,6 @@ type Lesson struct {
 	Trivia     []string   // from trivia.txt, separated by \n---\n
 	Answer     string     // from answer.md: full explanation for interview questions
 	Tests      []TestCase // ordered graded test cases; Tests[0] is the primary test
-	IsPremium  bool       // true if this lesson requires a license
 	IsOfficial bool       // true if loaded from the official/ directory (hash-verified)
 
 	// Multi-file exercise support. When non-empty, Files takes precedence over Exercise.
@@ -191,7 +190,6 @@ func LoadLang(dir, lang string) (*Lesson, error) {
 			lesson.Companies = fm.Companies
 			lesson.References = fm.References
 			lesson.Tutorial = fm.Tutorial
-			lesson.IsPremium = fm.Premium
 			lesson.EnabledWidgets = fm.Widgets
 			lesson.Content = body
 			lesson.Title = extractTitle(lesson.Content)
@@ -463,7 +461,6 @@ type frontmatter struct {
 	Companies   []string          `yaml:"companies"`
 	References  []string          `yaml:"references"`
 	Tutorial    []string          `yaml:"tutorial"`
-	Premium     bool              `yaml:"premium"`
 	Language    string            `yaml:"language,omitempty"`
 	Build       string            `yaml:"build,omitempty"`
 	BuildOutput string            `yaml:"build_output,omitempty"`

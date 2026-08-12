@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"ztutor/internal/db"
-	"ztutor/internal/license"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -20,8 +19,7 @@ const exportsDir = "exports"
 const importsDir = "imports"
 
 type adminExportModel struct {
-	db  *db.DB
-	lic *license.State
+	db *db.DB
 	sized
 	cursor int
 	result string // success path / summary text or error text
@@ -53,8 +51,8 @@ var exportOptions = []exportOption{
 	},
 }
 
-func newAdminExport(database *db.DB, lic *license.State, w, h int) *adminExportModel {
-	return &adminExportModel{db: database, lic: lic, sized: sized{Width: w, Height: h}}
+func newAdminExport(database *db.DB, w, h int) *adminExportModel {
+	return &adminExportModel{db: database, sized: sized{Width: w, Height: h}}
 }
 
 func (m *adminExportModel) Init() tea.Cmd { return nil }
@@ -161,12 +159,7 @@ func (m *adminExportModel) runImport() {
 		return
 	}
 
-	maxStudents := 0
-	if m.lic != nil && m.lic.MaxStudents > 0 {
-		maxStudents = m.lic.MaxStudents
-	}
-
-	result, err := m.db.ImportStudentsCSV(data, maxStudents)
+	result, err := m.db.ImportStudentsCSV(data)
 	if err != nil {
 		m.result = "import failed: " + err.Error()
 		m.isErr = true

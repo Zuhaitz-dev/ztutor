@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ed25519"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -12,31 +10,19 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"ztutor/internal/apputil"
 	"ztutor/internal/config"
 	"ztutor/internal/db"
-	"ztutor/internal/license"
 	"ztutor/internal/logutil"
 	"ztutor/internal/remote"
 	"ztutor/internal/sandbox"
 	"ztutor/internal/ssh"
 	"ztutor/internal/tui"
-	"ztutor/internal/update"
 	"ztutor/internal/version"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 )
-
-func defaultDataDir() string {
-	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
-		return filepath.Join(dir, "ztutor")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "."
-	}
-	return filepath.Join(home, ".local", "share", "ztutor")
-}
 
 func main() {
 	verbose := flag.Bool("v", false, "enable verbose debug logging")
@@ -51,7 +37,7 @@ func main() {
 	}
 
 	if *checkUpdate {
-		checkAndPrintUpdate()
+		apputil.CheckAndPrintUpdate()
 		return
 	}
 
@@ -60,8 +46,8 @@ func main() {
 	logutil.Info("%s", version.String())
 	logutil.Debug("verbose logging enabled")
 
-	dataDir := envOrDefault("ZTUTOR_DATA_DIR", defaultDataDir())
-	configPath := envOrDefault("ZTUTOR_CONFIG", "./ztutor.json")
+	dataDir := apputil.EnvOrDefault("ZTUTOR_DATA_DIR", apputil.DefaultDataDir())
+	configPath := apputil.EnvOrDefault("ZTUTOR_CONFIG", "./ztutor.json")
 	logutil.Debug("data dir: %s", dataDir)
 	logutil.Debug("config path: %s", configPath)
 
@@ -89,25 +75,12 @@ func main() {
 	if coursesDir == "" {
 		coursesDir = "./courses"
 	}
-	lessonsDir := envOrDefault("ZTUTOR_LESSONS_DIR", "./lessons")
-	pubKeyHex := os.Getenv("ZTUTOR_LICENSE_PUBKEY")
-	if pubKeyHex != "" {
-		if b, err := hex.DecodeString(pubKeyHex); err == nil {
-			license.SetPublicKey(ed25519.PublicKey(b))
-		}
-	}
+	lessonsDir := apputil.EnvOrDefault("ZTUTOR_LESSONS_DIR", "./lessons")
 
-	licenseFile := envOrDefault("ZTUTOR_LICENSE_FILE", cfg.License.File)
-	if licenseFile == "" {
-		licenseFile = filepath.Join(dataDir, "license.key")
-	}
 	logutil.Debug("host key: %s", hostKey)
 	logutil.Debug("db path: %s", dbPath)
 	logutil.Debug("courses dir: %s", coursesDir)
 	logutil.Debug("lessons dir: %s", lessonsDir)
-	logutil.Debug("license file: %s", licenseFile)
-
-	lic, _ := license.Check(licenseFile)
 
 	achievementsFile := filepath.Join(filepath.Dir(lessonsDir), "custom_achievements.yaml")
 
@@ -120,15 +93,14 @@ func main() {
 		DBPath:           dbPath,
 		Addr:             cfg.SSH.Addr,
 		Keymap:           cfg.Keymap,
-		License:          lic,
 		SetupToken:       setupToken,
 		MaxConns:         cfg.SSH.MaxConns,
 	}, &ssh.TUIProvider{
-		NewStudentApp: func(username, coursesDir, lessonsDir string, db *db.DB, license *license.State, width, height int, keymap string) tea.Model {
-			return tui.NewApp(username, coursesDir, lessonsDir, db, license, width, height, keymap)
+		NewStudentApp: func(username, coursesDir, lessonsDir string, db *db.DB, width, height int, keymap string) tea.Model {
+			return tui.NewApp(username, coursesDir, lessonsDir, db, width, height, keymap)
 		},
-		NewAdminApp: func(username string, db *db.DB, license *license.State, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
-			return tui.NewAdminApp(username, db, license, lessonsDir, coursesDir, achievementsFile, width, height)
+		NewAdminApp: func(username string, db *db.DB, lessonsDir, coursesDir, achievementsFile string, width, height int) tea.Model {
+			return tui.NewAdminApp(username, db, lessonsDir, coursesDir, achievementsFile, width, height)
 		},
 		LoadAchievements: tui.LoadCustomAchievements,
 	})
@@ -180,7 +152,7 @@ func main() {
 		case err := <-errCh:
 			logutil.Fatal("server: %v", err)
 		}
-		runLocalControl(srv, dbPath, lic, lessonsDir, coursesDir, achievementsFile, cfg.Keymap)
+		runLocalControl(srv, dbPath, lessonsDir, coursesDir, achievementsFile, cfg.Keymap)
 		srv.Shutdown(ctx)
 	} else {
 		select {
@@ -200,14 +172,7 @@ func main() {
 	logutil.Info("ztutor stopped")
 }
 
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func runLocalControl(srv *ssh.Server, dbPath string, lic *license.State, lessonsDir, coursesDir, achievementsFile, keymap string) {
+func runLocalControl(srv *ssh.Server, dbPath, lessonsDir, coursesDir, achievementsFile, keymap string) {
 	localDB, err := db.Open(dbPath)
 	if err != nil {
 		logutil.Error("local admin: open db: %v", err)
@@ -220,35 +185,25 @@ func runLocalControl(srv *ssh.Server, dbPath string, lic *license.State, lessons
 		width, height = w, h
 	}
 
-	if lic != nil && lic.HasAdminUI {
-		logutil.Info("SSH server running at %s - business control opening", srv.ListenAddr())
-	} else {
-		logutil.Info("SSH server running at %s - learner setup opening", srv.ListenAddr())
-	}
+	logutil.Info("SSH server running at %s - admin control opening", srv.ListenAddr())
 
 	username := adminUsername()
-	showAdmin := true
 	for {
-		if showAdmin {
-			app := tui.NewAdminApp(username, localDB, lic, lessonsDir, coursesDir, achievementsFile, width, height)
-			if _, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
-				logutil.Error("local admin TUI: %v", err)
-				return
-			}
-			if !app.WantsRelaunch() {
-				return
-			}
-			showAdmin = false
-		} else {
-			app := tui.NewApp(username, coursesDir, lessonsDir, localDB, lic, width, height, keymap)
-			if _, err := tea.NewProgram(app, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
-				logutil.Error("local student TUI: %v", err)
-				return
-			}
-			if !app.WantsRelaunch() {
-				return
-			}
-			showAdmin = true
+		adminApp := tui.NewAdminApp(username, localDB, lessonsDir, coursesDir, achievementsFile, width, height)
+		if _, err := tea.NewProgram(adminApp, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
+			logutil.Error("local admin TUI: %v", err)
+			return
+		}
+		if !adminApp.WantsRelaunch() {
+			return
+		}
+		studentApp := tui.NewApp(username, coursesDir, lessonsDir, localDB, width, height, keymap)
+		if _, err := tea.NewProgram(studentApp, tea.WithAltScreen(), tea.WithoutCatchPanics()).Run(); err != nil {
+			logutil.Error("local student TUI: %v", err)
+			return
+		}
+		if !studentApp.WantsRelaunch() {
+			return
 		}
 	}
 }
@@ -258,20 +213,4 @@ func adminUsername() string {
 		return u.Username
 	}
 	return "admin"
-}
-
-func checkAndPrintUpdate() {
-	info, err := update.CheckLatest(version.Version, nil, "")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Update check failed: %v\n", err)
-		os.Exit(1)
-	}
-	if info == nil {
-		fmt.Printf("ztutor %s is up to date.\n", version.Version)
-		return
-	}
-	fmt.Printf("New version %s available\n", info.Version)
-	fmt.Printf("  Released: %s\n", info.PublishedAt)
-	fmt.Printf("  Download: %s\n", info.ReleaseURL)
-	fmt.Printf("\nRun update-ztutor.sh to install automatically.\n")
 }

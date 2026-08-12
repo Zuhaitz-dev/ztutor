@@ -56,10 +56,6 @@ type Config struct {
 		MaxProcs              int `json:"max_procs"`
 		MaxCPUSecs            int `json:"max_cpu_secs"`
 	} `json:"sandbox"`
-
-	License struct {
-		File string `json:"file"`
-	} `json:"license"`
 }
 
 func Defaults() Config {

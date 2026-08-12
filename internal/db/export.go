@@ -28,10 +28,9 @@ type ImportResult struct {
 // Format: one row per student — username[,password]
 //   - If password is omitted, one is generated automatically.
 //   - Existing usernames are silently skipped.
-//   - maxStudents == 0 means no limit; non-zero caps total students in the DB.
 //
 // Returns ImportResult even when err != nil (partial results may be available).
-func (db *DB) ImportStudentsCSV(data []byte, maxStudents int) (ImportResult, error) {
+func (db *DB) ImportStudentsCSV(data []byte) (ImportResult, error) {
 	r := csv.NewReader(bytes.NewReader(data))
 	r.FieldsPerRecord = -1
 	r.Comment = '#'
@@ -59,20 +58,6 @@ func (db *DB) ImportStudentsCSV(data []byte, maxStudents int) (ImportResult, err
 		if count > 0 {
 			result.Skipped = append(result.Skipped, username)
 			continue
-		}
-
-		// Enforce seat limit.
-		if maxStudents > 0 {
-			current, err := db.CountUsers()
-			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("%s: cannot count users: %v", username, err))
-				break
-			}
-			if current >= maxStudents {
-				result.Errors = append(result.Errors,
-					fmt.Sprintf("seat limit reached (%d), %s and remaining rows skipped", maxStudents, username))
-				break
-			}
 		}
 
 		password := ""
