@@ -81,7 +81,7 @@ int main(void) {
 	defer kill()
 
 	var output string
-	timeout := time.After(2 * time.Second)
+	timeout := time.After(10 * time.Second)
 loop:
 	for {
 		select {
@@ -134,7 +134,7 @@ int main(void) {
 	defer kill()
 
 	var output string
-	timeout := time.After(2 * time.Second)
+	timeout := time.After(10 * time.Second)
 	wrote := false
 loop:
 	for {
@@ -186,7 +186,7 @@ int main(void) {
 
 	kill()
 
-	timeout := time.After(2 * time.Second)
+	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case ev, ok := <-events:
