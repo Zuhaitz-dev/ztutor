@@ -86,22 +86,26 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		outW.Close()
 		return nil, fmt.Errorf("CreatePseudoConsole: %w", err)
 	}
-	// The parent only needs inW and outR from here on.
-	inR.Close()
-	outW.Close()
+	// Keep inR/outW open: inR is the console's input read end, and outW must
+	// stay open until the child exits so the reader can drain buffered output
+	// before the pipe signals EOF.
 
 	cmdLine, err := buildCommandLine(command, args)
 	if err != nil {
+		inR.Close()
 		inW.Close()
 		outR.Close()
+		outW.Close()
 		windows.ClosePseudoConsole(console)
 		return nil, err
 	}
 
 	attrList, err := windows.NewProcThreadAttributeList(1)
 	if err != nil {
+		inR.Close()
 		inW.Close()
 		outR.Close()
+		outW.Close()
 		windows.ClosePseudoConsole(console)
 		return nil, err
 	}
@@ -119,8 +123,10 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		0)
 	if ret == 0 {
 		attrList.Delete()
+		inR.Close()
 		inW.Close()
 		outR.Close()
+		outW.Close()
 		windows.ClosePseudoConsole(console)
 		return nil, e
 	}
@@ -143,8 +149,10 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		envBlock, err = buildEnvBlock(sandboxEnv(dir, nil))
 		if err != nil {
 			attrList.Delete()
+			inR.Close()
 			inW.Close()
 			outR.Close()
+			outW.Close()
 			windows.ClosePseudoConsole(console)
 			return nil, err
 		}
@@ -154,8 +162,10 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 	cmdLinePtr, err := windows.UTF16PtrFromString(cmdLine)
 	if err != nil {
 		attrList.Delete()
+		inR.Close()
 		inW.Close()
 		outR.Close()
+		outW.Close()
 		windows.ClosePseudoConsole(console)
 		return nil, err
 	}
@@ -163,13 +173,28 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 	var pi windows.ProcessInformation
 	if err := windows.CreateProcess(nil, cmdLinePtr, nil, nil, false, flags, envBlock, nil, &startupInfo.StartupInfo, &pi); err != nil {
 		attrList.Delete()
+		inR.Close()
 		inW.Close()
 		outR.Close()
+		outW.Close()
 		windows.ClosePseudoConsole(console)
 		return nil, fmt.Errorf("CreateProcess: %w", err)
 	}
 	attrList.Delete()
 	conptyDebugf("child started pid=%d command=%q", pi.ProcessId, command)
+
+	// Watch the child: when it exits, close the output pipe's write end so the
+	// reader drains any buffered output and then gets EOF. The exit code is
+	// delivered to wait() via a channel.
+	exitCodeCh := make(chan int, 1)
+	go func() {
+		_, _ = windows.WaitForSingleObject(pi.Process, windows.INFINITE)
+		var code uint32
+		_ = windows.GetExitCodeProcess(pi.Process, &code)
+		conptyDebugf("wait exit code=%d", code)
+		outW.Close()
+		exitCodeCh <- int(code)
+	}()
 
 	var closeOnce sync.Once
 	cleanup := func() {
@@ -177,8 +202,10 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 			windows.CloseHandle(pi.Thread)
 			windows.CloseHandle(pi.Process)
 			windows.ClosePseudoConsole(console)
+			inR.Close()
 			inW.Close()
 			outR.Close()
+			outW.Close()
 		})
 	}
 
@@ -186,16 +213,15 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		read:  func(b []byte) (int, error) { return outR.Read(b) },
 		write: func(b []byte) (int, error) { return inW.Write(b) },
 		kill: func() {
+			// Terminate and close the output write end so the reader unblocks.
+			// The exit goroutine delivers the code; wait() performs cleanup.
 			_ = windows.TerminateProcess(pi.Process, 1)
-			cleanup()
+			outW.Close()
 		},
 		wait: func() int {
-			_, _ = windows.WaitForSingleObject(pi.Process, windows.INFINITE)
-			var code uint32
-			_ = windows.GetExitCodeProcess(pi.Process, &code)
-			conptyDebugf("wait exit code=%d", code)
+			code := <-exitCodeCh
 			cleanup()
-			return int(code)
+			return code
 		},
 	}, nil
 }
