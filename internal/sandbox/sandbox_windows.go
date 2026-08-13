@@ -43,7 +43,13 @@ func makeExecutable(path string) error { return nil }
 
 func sandboxBinaryName() string { return "prog.exe" }
 
-func sandboxPathEnv() string { return `C:\Windows\system32;C:\Windows` }
+func sandboxPathEnv() string {
+	dirs := []string{`C:\Windows\system32`, `C:\Windows`}
+	// Include the compiler directories so MinGW binaries can load their
+	// runtime DLLs (libgcc_s, libstdc++, winpthread) at execution time.
+	dirs = append(dirs, sandboxToolchainDirs...)
+	return strings.Join(dirs, ";")
+}
 
 // exitSignalInfo is a no-op on Windows: crashes surface as exit codes, not
 // signals, so the 128+sig path never applies.
@@ -245,12 +251,9 @@ func buildEnvBlock(env []string) (*uint16, error) {
 	return &buf[0], nil
 }
 
-// staticLinkFlags statically links the MinGW runtime (libgcc_s, libstdc++)
-// into C/C++ binaries so they don't depend on the MinGW runtime DLLs at run
-// time — the sandboxed environment's curated PATH does not include the
-// compiler dir. Full -static is avoided: it pulls in all of libc and makes
-// C++ linking impractically slow on the Windows runners.
-func staticLinkFlags() []string { return []string{"-static-libgcc", "-static-libstdc++"} }
+// staticLinkFlags is a no-op: MinGW runtime DLLs are found by extending the
+// sandbox PATH with the toolchain directories (see sandboxPathEnv).
+func staticLinkFlags() []string { return nil }
 
 // isExecutableCandidate reports whether a build artifact is the runnable
 // binary. Windows files never carry the unix exec bit, so match known

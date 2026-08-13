@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"ztutor/internal/logutil"
@@ -192,6 +193,7 @@ func RegisterLanguage(info *LanguageInfo) {
 	if info.compilerPath == "" && info.Compiler != "" {
 		if p, err := exec.LookPath(info.Compiler); err == nil {
 			info.compilerPath = p
+			registerToolchainDir(p)
 		} else {
 			logutil.Warn("%s compiler (%s) not found — %s programs will not compile", info.LangDisplayName, info.Compiler, info.LangDisplayName)
 			info.compilerPath = info.Compiler
@@ -213,6 +215,21 @@ func GetLanguage(name string) *LanguageInfo {
 		return l
 	}
 	return nil
+}
+
+// sandboxToolchainDirs holds the directories of the registered compilers.
+// On Windows the sandbox PATH is extended with these so MinGW-compiled
+// binaries can load their runtime DLLs (libgcc_s, libstdc++, winpthread).
+var sandboxToolchainDirs []string
+
+func registerToolchainDir(compilerPath string) {
+	dir := filepath.Dir(compilerPath)
+	for _, d := range sandboxToolchainDirs {
+		if d == dir {
+			return
+		}
+	}
+	sandboxToolchainDirs = append(sandboxToolchainDirs, dir)
 }
 
 func AllLanguages() map[string]*LanguageInfo {

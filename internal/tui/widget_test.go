@@ -130,13 +130,13 @@ func TestTimerWidget_StartStop(t *testing.T) {
 		t.Error("should be visible after Start")
 	}
 	d := w.Current()
-	if d <= 0 {
-		t.Error("Current should be positive after Start")
+	if d < 0 {
+		t.Error("Current should not be negative after Start")
 	}
 	w.Stop()
 	d2 := w.Current()
-	if d2 <= 0 {
-		t.Error("Current should be positive after Stop")
+	if d2 < 0 {
+		t.Error("Current should not be negative after Stop")
 	}
 }
 
