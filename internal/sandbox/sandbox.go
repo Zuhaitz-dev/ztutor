@@ -518,80 +518,22 @@ type InteractiveEvent struct {
 	Code int
 }
 
+// ptyChild is a running child process attached to a pseudo-terminal. The
+// concrete implementation is platform-specific (a PTY pair on unix, ConPTY on
+// Windows); the read/write/wait/kill handles here are what the shared event
+// loop needs.
+type ptyChild struct {
+	read  func([]byte) (int, error)
+	write func([]byte) (int, error)
+	kill  func()
+	wait  func() int
+}
+
+// RunInteractive launches `command` attached to a pseudo-terminal so the caller
+// can read output and write input interactively (e.g. a REPL or interactive
+// program).
 func RunInteractive(command string, args []string) (writeFn func([]byte) error, events <-chan InteractiveEvent, kill func(), err error) {
-	master, slave, err := openInteractivePTY()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	defer slave.Close()
-
-	configureTermios(int(slave.Fd()))
-
-	cmd := exec.Command(command, args...)
-	cmd.Stdin = slave
-	cmd.Stdout = slave
-	cmd.Stderr = slave
-	cmd.SysProcAttr = interactiveSysProcAttr()
-
-	dir, _ := os.MkdirTemp("", "ztutor-interactive-")
-	if dir != "" {
-		defer os.RemoveAll(dir)
-	}
-	cmd.Env = sandboxEnv(dir, nil)
-
-	cleanup := applyInteractiveIsolation(cmd)
-	defer cleanup()
-
-	closeMaster := true
-	defer func() {
-		if closeMaster {
-			master.Close()
-		}
-	}()
-
-	if err := cmd.Start(); err != nil {
-		return nil, nil, nil, fmt.Errorf("start: %w", err)
-	}
-	closeMaster = false
-
-	ch := make(chan InteractiveEvent, 64)
-
-	go func() {
-		defer master.Close()
-		defer close(ch)
-
-		buf := make([]byte, 512)
-		for {
-			n, err := master.Read(buf)
-			if n > 0 {
-				text := strings.ReplaceAll(string(buf[:n]), "\r\n", "\n")
-				text = strings.ReplaceAll(text, "\r", "")
-				ch <- InteractiveEvent{Text: text}
-			}
-			if err != nil {
-				break
-			}
-		}
-
-		exitCode := 0
-		if err := cmd.Wait(); err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				exitCode = exitErr.ExitCode()
-			}
-		}
-		ch <- InteractiveEvent{Done: true, Code: exitCode}
-	}()
-
-	writeFn = func(data []byte) error {
-		_, err := master.Write(data)
-		return err
-	}
-	kill = func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-	}
-	return writeFn, ch, kill, nil
+	return runPTYChild(command, args, true)
 }
 
 // RunDebugger launches a debugger (e.g. GDB) connected to a PTY for
@@ -599,38 +541,22 @@ func RunInteractive(command string, args []string) (writeFn func([]byte) error, 
 // sandbox isolation — the debugger needs full filesystem access for shared
 // libraries, source files, and symbol resolution.
 func RunDebugger(command string, args []string) (writeFn func([]byte) error, events <-chan InteractiveEvent, kill func(), err error) {
-	master, slave, err := openInteractivePTY()
+	return runPTYChild(command, args, false)
+}
+
+func runPTYChild(command string, args []string, isolated bool) (func([]byte) error, <-chan InteractiveEvent, func(), error) {
+	child, err := spawnPTYChild(command, args, isolated)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	defer slave.Close()
-
-	cmd := exec.Command(command, args...)
-	cmd.Stdin = slave
-	cmd.Stdout = slave
-	cmd.Stderr = slave
-	cmd.SysProcAttr = debuggerSysProcAttr()
-
-	if err := cmd.Start(); err != nil {
-		master.Close()
-		return nil, nil, nil, fmt.Errorf("start debugger: %w", err)
-	}
 
 	ch := make(chan InteractiveEvent, 64)
-	closeMaster := true
-	defer func() {
-		if closeMaster {
-			master.Close()
-		}
-	}()
-
 	go func() {
-		defer master.Close()
 		defer close(ch)
 
 		buf := make([]byte, 512)
 		for {
-			n, err := master.Read(buf)
+			n, err := child.read(buf)
 			if n > 0 {
 				text := strings.ReplaceAll(string(buf[:n]), "\r\n", "\n")
 				text = strings.ReplaceAll(text, "\r", "")
@@ -640,27 +566,14 @@ func RunDebugger(command string, args []string) (writeFn func([]byte) error, eve
 				break
 			}
 		}
-
-		exitCode := 0
-		if err := cmd.Wait(); err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				exitCode = exitErr.ExitCode()
-			}
-		}
-		ch <- InteractiveEvent{Done: true, Code: exitCode}
+		ch <- InteractiveEvent{Done: true, Code: child.wait()}
 	}()
 
-	closeMaster = false
-	writeFn = func(data []byte) error {
-		_, err := master.Write(data)
+	writeFn := func(data []byte) error {
+		_, err := child.write(data)
 		return err
 	}
-	kill = func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-	}
-	return writeFn, ch, kill, nil
+	return writeFn, ch, child.kill, nil
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

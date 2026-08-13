@@ -145,3 +145,60 @@ func makeExecutable(path string) error {
 }
 
 func sandboxPathEnv() string { return "/usr/local/bin:/usr/bin:/bin" }
+
+// spawnPTYChild starts `command` attached to a pseudo-terminal. When isolated
+// is true (interactive mode) the child gets a sandboxed environment and
+// namespace/rlimit isolation; the debugger runs without isolation.
+func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, error) {
+	master, slave, err := openInteractivePTY()
+	if err != nil {
+		return nil, err
+	}
+	defer slave.Close()
+
+	configureTermios(int(slave.Fd()))
+
+	cmd := exec.Command(command, args...)
+	cmd.Stdin = slave
+	cmd.Stdout = slave
+	cmd.Stderr = slave
+
+	if isolated {
+		cmd.SysProcAttr = interactiveSysProcAttr()
+		dir, _ := os.MkdirTemp("", "ztutor-interactive-")
+		if dir != "" {
+			defer os.RemoveAll(dir)
+		}
+		cmd.Env = sandboxEnv(dir, nil)
+		cleanup := applyInteractiveIsolation(cmd)
+		defer cleanup()
+	} else {
+		cmd.SysProcAttr = debuggerSysProcAttr()
+	}
+
+	if err := cmd.Start(); err != nil {
+		master.Close()
+		return nil, fmt.Errorf("start: %w", err)
+	}
+
+	return &ptyChild{
+		read: func(b []byte) (int, error) { return master.Read(b) },
+		write: func(b []byte) (int, error) {
+			return master.Write(b)
+		},
+		kill: func() {
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+		},
+		wait: func() int {
+			defer master.Close()
+			if err := cmd.Wait(); err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					return exitErr.ExitCode()
+				}
+			}
+			return 0
+		},
+	}, nil
+}

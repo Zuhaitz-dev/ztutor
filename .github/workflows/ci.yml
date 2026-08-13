@@ -161,6 +161,41 @@ jobs:
       - name: Test
         run: go test ./...
 
+  # Real Windows runner: build+vet always gate; the full suite runs once the
+  # MinGW toolchain is installed (ruby/java/rust tests skip if absent).
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Build and vet
+        run: |
+          go build ./...
+          go vet ./...
+
+      - name: Install MinGW (gcc for C tests)
+        shell: pwsh
+        run: choco install mingw -y --no-progress
+
+      - name: Install Rust toolchain
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://sh.rustup.rs -OutFile rustup-init.exe
+          .\rustup-init.exe -y --profile minimal
+          echo "$env:USERPROFILE\.cargo\bin" | Out-File -Append $env:GITHUB_PATH
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;$env:PATH"
+          go test ./...
+
   # Verify the production Docker image still builds.
   docker:
     runs-on: ubuntu-latest
