@@ -181,19 +181,20 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		return nil, fmt.Errorf("CreateProcess: %w", err)
 	}
 	attrList.Delete()
+	conptyDebugf("child started pid=%d command=%q", pi.ProcessId, command)
 
-	// Watch the child: when it exits, close the output pipe's write end AND the
-	// pseudo console (which holds its own copy of outW) so the reader drains any
-	// buffered output and then gets EOF. A short grace period after the process
-	// exits lets the console flush output written just before termination;
-	// otherwise fast-exiting programs lose their final output.
+	// Watch the child: when it exits, give the pseudo console time to flush
+	// pending output to the pipe BEFORE closing the write end and the console.
+	// Closing outW or the console while the console's forward thread is still
+	// writing drops a fast-exiting program's final output.
 	exitCodeCh := make(chan int, 1)
 	go func() {
 		_, _ = windows.WaitForSingleObject(pi.Process, windows.INFINITE)
 		var code uint32
 		_ = windows.GetExitCodeProcess(pi.Process, &code)
+		conptyDebugf("wait exit code=%d", code)
+		time.Sleep(500 * time.Millisecond)
 		outW.Close()
-		time.Sleep(150 * time.Millisecond)
 		windows.ClosePseudoConsole(console)
 		exitCodeCh <- int(code)
 	}()
@@ -311,4 +312,9 @@ func isExecutableCandidate(name string, info fs.FileInfo) bool {
 		return true
 	}
 	return false
+}
+
+// conptyDebugf logs to stderr for debugging the ConPTY path on Windows CI.
+func conptyDebugf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "[conpty] "+format+"\n", args...)
 }

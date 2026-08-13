@@ -2,7 +2,6 @@ package tui
 
 import (
 	"os/exec"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -520,9 +519,6 @@ int main(void) {
 }
 
 func TestIntegration_InteractiveCompile(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("ConPTY on Windows: MinGW console interaction needs a real Windows debugging pass")
-	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}

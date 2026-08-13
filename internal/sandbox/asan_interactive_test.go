@@ -57,9 +57,6 @@ int main(void) {
 }
 
 func TestRunInteractive_Basic(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("ConPTY on Windows: MinGW fast-exit output flush / console input encoding need a real Windows debugging pass")
-	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}
@@ -110,9 +107,6 @@ loop:
 }
 
 func TestRunInteractive_WriteAndRead(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("ConPTY on Windows: MinGW fast-exit output flush / console input encoding need a real Windows debugging pass")
-	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}
@@ -168,9 +162,6 @@ loop:
 }
 
 func TestRunInteractive_Kill(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("ConPTY on Windows: MinGW fast-exit output flush / console input encoding need a real Windows debugging pass")
-	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}

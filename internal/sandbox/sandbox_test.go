@@ -3,7 +3,6 @@ package sandbox
 import (
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -323,9 +322,6 @@ func TestGetLanguage(t *testing.T) {
 }
 
 func TestRunDebugger_ProcessLifecycle(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("ConPTY on Windows: MinGW console interaction needs a real Windows debugging pass")
-	}
 	if _, err := exec.LookPath("cat"); err != nil {
 		t.Skip("cat not available")
 	}
