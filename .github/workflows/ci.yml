@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      image: golang:1.22-bookworm
+      image: golang:1.25-bookworm
 
     steps:
       - uses: actions/checkout@v4

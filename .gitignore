@@ -37,3 +37,6 @@ coverage.html
 *.mp4
 *.mov
 *.webm
+
+# Local data exports (never commit)
+unified_customers.csv

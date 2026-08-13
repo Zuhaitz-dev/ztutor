@@ -6,6 +6,11 @@
 - Everything is now open. All courses and lessons are available to every user.
 - First account created on a fresh server is always the admin account.
 
+### Changed
+- Dependencies moved to current major releases: bubbletea v1, bubbles v1, glamour v1, lipgloss v1, modernc.org/sqlite v1.56, chroma v2.27. Requires Go 1.25+.
+- `premium` and `enrollment` keys in existing course content are ignored (harmless).
+- Connect screen no longer offers a license entry option.
+
 ### Removed
 - License system (`internal/license`): tiers, premium gating, seat limits, interview gating, license entry/summary screens.
 - Encrypted `.course` packages (`internal/crypt`, `cmd/coursepack`): courses are plain directories.
@@ -14,10 +19,6 @@
 - `enrollment.required` gating in course.yaml and `premium` lesson badges.
 - `ZTUTOR_LICENSE_PUBKEY` / `ZTUTOR_LICENSE_FILE` env and config plumbing, Makefile targets, Docker/service wiring, and `LICENSE-COMMERCIAL`.
 - `license_redemptions` database table (dropped by a new migration).
-
-### Changed
-- `premium` and `enrollment` keys in existing course content are ignored (harmless).
-- Connect screen no longer offers a license entry option.
 
 ## v0.1.18 -- GDB in TUI, course fixes, content checks, versioning
 

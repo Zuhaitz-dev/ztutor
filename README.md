@@ -278,7 +278,7 @@ make lint        # run gofmt check and go vet
 make clean       # remove binary and database
 ```
 
-Requires Go 1.22+ and a compiler for each language you want to support (gcc, g++, rustc, etc.).
+Requires Go 1.25+ and a compiler for each language you want to support (gcc, g++, rustc, etc.).
 
 ## Architecture
 
@@ -302,7 +302,7 @@ ztutor/
 
 ## Technology
 
-- Go 1.22
+- Go 1.25
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) -- TUI framework
 - [Chroma](https://github.com/alecthomas/chroma) -- syntax highlighting
 - [Glamour](https://github.com/charmbracelet/glamour) -- terminal markdown rendering

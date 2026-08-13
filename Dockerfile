@@ -1,5 +1,5 @@
 # ztutor CI image — includes all 7 language toolchains for full sandbox testing.
-FROM golang:1.22-bookworm
+FROM golang:1.25-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ gdb make \
