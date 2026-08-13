@@ -170,7 +170,7 @@ func (l *LanguageInfo) Execute(dir, stdin string, runtimeArgs, extraEnv []string
 	if l.ExecuteFn != nil {
 		return l.ExecuteFn(dir, stdin, runtimeArgs, extraEnv, l.compilerPath)
 	}
-	return nil, fmt.Errorf("execution not supported for " + l.Name())
+	return nil, fmt.Errorf("execution not supported for %s", l.Name())
 }
 
 func (l *LanguageInfo) CompileDebug(dir, srcPath string, flags []string) (*DebugBuild, *Result) {
@@ -184,7 +184,7 @@ func (l *LanguageInfo) GenerateAssembly(dir, srcPath string, flags []string) (st
 	if l.GenerateAsmFn != nil {
 		return l.GenerateAsmFn(dir, srcPath, flags, l.compilerPath)
 	}
-	return "", fmt.Errorf("assembly view not supported for " + l.Name())
+	return "", fmt.Errorf("assembly view not supported for %s", l.Name())
 }
 
 var languages = map[string]*LanguageInfo{}

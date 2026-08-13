@@ -271,7 +271,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case updateCheckMsg:
 		if msg.version != "" {
 			notif := fmt.Sprintf("New version %s available — download at %s", msg.version, msg.url)
-			logutil.Info(notif)
+			logutil.Info("%s", notif)
 			a.pendingNotifications = append(a.pendingNotifications, notif)
 		}
 		return a, nil

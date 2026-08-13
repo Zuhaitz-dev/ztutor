@@ -41,6 +41,9 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Race test
+        run: go test -race ./...
+
       - name: Build
         run: make build
         env:
