@@ -243,24 +243,24 @@ func LoadLang(dir, lang string) (*Lesson, error) {
 		case name == "expected.txt":
 			data, _ := os.ReadFile(path)
 			tc := getOrCreate(testMap, 1)
-			tc.Expect = string(data)
+			tc.Expect = normalizeTestText(string(data))
 			tc.hasExp = true
 
 		case name == "expected.stdout.txt":
 			data, _ := os.ReadFile(path)
 			tc := getOrCreate(testMap, 1)
-			tc.ExpectOut = string(data)
+			tc.ExpectOut = normalizeTestText(string(data))
 			tc.hasOut = true
 
 		case name == "expected.stderr.txt":
 			data, _ := os.ReadFile(path)
 			tc := getOrCreate(testMap, 1)
-			tc.ExpectErr = string(data)
+			tc.ExpectErr = normalizeTestText(string(data))
 			tc.hasErr = true
 
 		case name == "stdin.txt":
 			data, _ := os.ReadFile(path)
-			getOrCreate(testMap, 1).Stdin = string(data)
+			getOrCreate(testMap, 1).Stdin = normalizeTestText(string(data))
 
 		case name == "args.txt":
 			data, _ := os.ReadFile(path)
@@ -279,16 +279,16 @@ func LoadLang(dir, lang string) (*Lesson, error) {
 			tc := getOrCreate(testMap, n)
 			switch field {
 			case "expected":
-				tc.Expect = string(data)
+				tc.Expect = normalizeTestText(string(data))
 				tc.hasExp = true
 			case "expected.stdout":
-				tc.ExpectOut = string(data)
+				tc.ExpectOut = normalizeTestText(string(data))
 				tc.hasOut = true
 			case "expected.stderr":
-				tc.ExpectErr = string(data)
+				tc.ExpectErr = normalizeTestText(string(data))
 				tc.hasErr = true
 			case "stdin":
-				tc.Stdin = string(data)
+				tc.Stdin = normalizeTestText(string(data))
 			case "args":
 				tc.Args = strings.TrimSpace(string(data))
 			}
@@ -500,6 +500,12 @@ func parseFrontmatter(raw string) (fm frontmatter, body string) {
 		return frontmatter{}, raw
 	}
 	return fm, body
+}
+
+// normalizeTestText converts CRLF line endings (git autocrlf checkouts on
+// Windows) to LF so expected-output comparisons are consistent across hosts.
+func normalizeTestText(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
 }
 
 // splitBlocks splits text on "\n---\n" and returns non-empty trimmed blocks.

@@ -245,10 +245,12 @@ func buildEnvBlock(env []string) (*uint16, error) {
 	return &buf[0], nil
 }
 
-// staticLinkFlags statically links MinGW C/C++ binaries so they don't depend
-// on the MinGW runtime DLLs (libgcc_s, libstdc++, winpthread) at run time —
-// the sandboxed environment's curated PATH does not include the compiler dir.
-func staticLinkFlags() []string { return []string{"-static"} }
+// staticLinkFlags statically links the MinGW runtime (libgcc_s, libstdc++)
+// into C/C++ binaries so they don't depend on the MinGW runtime DLLs at run
+// time — the sandboxed environment's curated PATH does not include the
+// compiler dir. Full -static is avoided: it pulls in all of libc and makes
+// C++ linking impractically slow on the Windows runners.
+func staticLinkFlags() []string { return []string{"-static-libgcc", "-static-libstdc++"} }
 
 // isExecutableCandidate reports whether a build artifact is the runnable
 // binary. Windows files never carry the unix exec bit, so match known

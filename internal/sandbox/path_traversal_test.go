@@ -20,7 +20,7 @@ func TestWriteFiles_RejectsDoubleDot(t *testing.T) {
 func TestWriteFiles_RejectsAbsolutePath(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		filepath.Join(string(filepath.Separator), "etc", "passwd"): "hacked",
+		filepath.Join(dir, "..", "etc", "passwd"): "hacked",
 	}
 	err := writeFiles(dir, files)
 	if err == nil {
@@ -82,7 +82,8 @@ func TestSafeWritePath_RejectsDoubleDot(t *testing.T) {
 }
 
 func TestSafeWritePath_RejectsAbsolute(t *testing.T) {
-	_, err := safeWritePath("/tmp/sandbox", filepath.Join(string(filepath.Separator), "etc", "passwd"))
+	abs, _ := filepath.Abs("etc/passwd")
+	_, err := safeWritePath("/tmp/sandbox", abs)
 	if err == nil {
 		t.Error("safeWritePath should reject absolute paths")
 	}

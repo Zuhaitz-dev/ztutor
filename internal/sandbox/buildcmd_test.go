@@ -178,7 +178,7 @@ func TestMultiFile_SafeWritePath(t *testing.T) {
 		t.Error("safeWritePath should reject .. traversal")
 	}
 
-	_, err = safeWritePath(dir, filepath.Join(string(filepath.Separator), "etc", "passwd"))
+	_, err = safeWritePath(dir, filepath.Join(dir, "..", "etc", "passwd"))
 	if err == nil {
 		t.Error("safeWritePath should reject absolute paths")
 	}

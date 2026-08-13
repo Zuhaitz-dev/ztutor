@@ -241,8 +241,12 @@ int main(int argc, char *argv[]) {
 func TestEnsureProg_RenamesCustomBinary(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create a custom-named binary.
-	customPath := filepath.Join(dir, "my-server")
+	// Create a custom-named binary (executable suffix on Windows).
+	customName := "my-server"
+	if runtime.GOOS == "windows" {
+		customName += ".exe"
+	}
+	customPath := filepath.Join(dir, customName)
 	if err := os.WriteFile(customPath, []byte("#!/bin/sh\necho hi\n"), 0755); err != nil {
 		t.Fatalf("write custom binary: %v", err)
 	}
