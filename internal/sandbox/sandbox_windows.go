@@ -3,6 +3,7 @@
 package sandbox
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"os"
@@ -193,7 +194,7 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		var code uint32
 		_ = windows.GetExitCodeProcess(pi.Process, &code)
 		conptyDebugf("wait exit code=%d", code)
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(2 * time.Second)
 		outW.Close()
 		windows.ClosePseudoConsole(console)
 		exitCodeCh <- int(code)
@@ -212,8 +213,15 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 	}
 
 	return &ptyChild{
-		read:  func(b []byte) (int, error) { return outR.Read(b) },
-		write: func(b []byte) (int, error) { return inW.Write(b) },
+		read: func(b []byte) (int, error) { return outR.Read(b) },
+		// The console's cooked-mode line editor submits a line on Enter (\r);
+		// translate a bare \n to \r\n so programs blocking on stdin see it.
+		write: func(b []byte) (int, error) {
+			if bytes.IndexByte(b, '\n') >= 0 {
+				b = bytes.ReplaceAll(b, []byte("\n"), []byte("\r\n"))
+			}
+			return inW.Write(b)
+		},
 		kill: func() {
 			// Terminate and close the output write end so the reader unblocks.
 			// The exit goroutine delivers the code; wait() performs cleanup.
