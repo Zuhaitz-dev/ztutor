@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -321,6 +322,9 @@ func TestExecutionTimeout(t *testing.T) {
 }
 
 func TestSignal_SIGFPE(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("signal semantics differ on Windows (no POSIX signals)")
+	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}
@@ -348,6 +352,9 @@ int main(void) { signal(SIGFPE, handler); raise(SIGFPE); return 0; }`
 }
 
 func TestSignal_SIGSEGV(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("signal semantics differ on Windows (no POSIX signals)")
+	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}
@@ -371,6 +378,9 @@ int main(void) { signal(SIGSEGV, handler); raise(SIGSEGV); return 0; }`
 }
 
 func TestRunAllTests_Signal_SIGSEGV(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("signal semantics differ on Windows (no POSIX signals)")
+	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}

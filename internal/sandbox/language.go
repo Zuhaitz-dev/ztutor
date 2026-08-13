@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"ztutor/internal/logutil"
@@ -137,7 +136,7 @@ func (l *LanguageInfo) CompileFiles(dir string, srcPaths []string, flags []strin
 	if l.compilerPath == "" {
 		return &Result{Error: "compiler not found for " + l.Name()}
 	}
-	outPath := filepath.Join(dir, "prog")
+	outPath := sandboxBinaryPath(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), Limits.MaxCompileRuntime)
 	defer cancel()
 	args := append([]string{}, flags...)

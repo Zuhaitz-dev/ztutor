@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -71,7 +69,7 @@ func cDebuggerArgs(binaryPath string) []string {
 }
 
 func cCompile(dir, srcPath string, flags []string, compiler string) *Result {
-	outPath := filepath.Join(dir, "prog")
+	outPath := sandboxBinaryPath(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -89,10 +87,10 @@ func cCompile(dir, srcPath string, flags []string, compiler string) *Result {
 		return &Result{Error: fmt.Sprintf("compilation error:\n%s", stripDir(stderr.String(), dir))}
 	}
 
-	if err := os.Chmod(dir, 0755); err != nil {
+	if err := makeExecutable(dir); err != nil {
 		logutil.Warn("sandbox: chmod dir: %v", err)
 	}
-	if err := os.Chmod(outPath, 0755); err != nil {
+	if err := makeExecutable(outPath); err != nil {
 		logutil.Warn("sandbox: chmod binary: %v", err)
 	}
 	return &Result{Output: stripDir(stderr.String(), dir)}
@@ -146,7 +144,7 @@ func parseGCCDiagnostics(output string) []Diagnostic {
 }
 
 func cExecute(dir, stdin string, runtimeArgs, extraEnv []string, compiler string) (*Result, error) {
-	progPath := filepath.Join(dir, "prog")
+	progPath := sandboxBinaryPath(dir)
 	return executeBinary(progPath, dir, stdin, runtimeArgs, extraEnv)
 }
 
@@ -156,7 +154,7 @@ func cCompileDebug(dir, srcPath string, flags []string, compiler string) (*Debug
 	if result.Error != "" {
 		return nil, result
 	}
-	return &DebugBuild{BinaryPath: filepath.Join(dir, "prog"), dir: dir}, nil
+	return &DebugBuild{BinaryPath: sandboxBinaryPath(dir), dir: dir}, nil
 }
 
 func cGenerateAssembly(dir, srcPath string, flags []string, compiler string) (string, error) {

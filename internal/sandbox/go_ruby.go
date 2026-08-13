@@ -88,7 +88,7 @@ func goDebuggerArgs(binaryPath string) []string {
 }
 
 func goCompile(dir, srcPath string, flags []string, compiler string) *Result {
-	outPath := filepath.Join(dir, "prog")
+	outPath := sandboxBinaryPath(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -107,7 +107,7 @@ func goCompile(dir, srcPath string, flags []string, compiler string) *Result {
 		return &Result{Error: fmt.Sprintf("compilation error:\n%s", stripDir(stderr.String(), dir))}
 	}
 
-	if err := os.Chmod(outPath, 0755); err != nil {
+	if err := makeExecutable(outPath); err != nil {
 		logutil.Warn("sandbox: chmod binary: %v", err)
 	}
 	return &Result{Output: stripDir(stderr.String(), dir)}
@@ -140,7 +140,7 @@ func goCompileDebug(dir, srcPath string, flags []string, compiler string) (*Debu
 	if result.Error != "" {
 		return nil, result
 	}
-	return &DebugBuild{BinaryPath: filepath.Join(dir, "prog"), dir: dir}, nil
+	return &DebugBuild{BinaryPath: sandboxBinaryPath(dir), dir: dir}, nil
 }
 
 func goGenerateAssembly(dir, srcPath string, flags []string, compiler string) (string, error) {

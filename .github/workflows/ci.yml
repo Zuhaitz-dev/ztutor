@@ -133,7 +133,7 @@ jobs:
       - name: Cross-compile
         run: |
           set -euo pipefail
-          for target in "linux arm64" "darwin amd64" "darwin arm64"; do
+          for target in "linux arm64" "darwin amd64" "darwin arm64" "windows amd64"; do
             set -- $target
             echo "building GOOS=$1 GOARCH=$2"
             CGO_ENABLED=0 GOOS=$1 GOARCH=$2 go build ./...

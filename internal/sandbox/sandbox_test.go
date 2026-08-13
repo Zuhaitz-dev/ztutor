@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -319,6 +320,9 @@ func TestGetLanguage(t *testing.T) {
 }
 
 func TestRunDebugger_ProcessLifecycle(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("debugger PTY not available on Windows yet (ConPTY pending)")
+	}
 	if _, err := exec.LookPath("cat"); err != nil {
 		t.Skip("cat not available")
 	}

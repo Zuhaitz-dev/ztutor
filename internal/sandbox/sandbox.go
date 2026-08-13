@@ -97,11 +97,10 @@ func formatExecuteResult(stdout, stderr, dir string, ctxErr error, execErr error
 	}
 
 	if execErr != nil {
+		if sig, ok := exitSignalInfo(execErr); ok {
+			return &Result{Output: output, Stdout: stdout, Stderr: stderr, ExitCode: 128 + sig, Error: fmt.Sprintf("program crashed: %s", syscall.Signal(sig))}
+		}
 		if exitErr, ok := execErr.(*exec.ExitError); ok {
-			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
-				sig := status.Signal()
-				return &Result{Output: output, Stdout: stdout, Stderr: stderr, ExitCode: 128 + int(sig), Error: fmt.Sprintf("program crashed: %s", sig)}
-			}
 			return &Result{Output: output, Stdout: stdout, Stderr: stderr, ExitCode: exitErr.ExitCode()}
 		}
 		return &Result{Output: output, Stdout: stdout, Stderr: stderr, Error: execErr.Error()}
@@ -245,9 +244,16 @@ func writeFiles(dir string, files map[string]string) error {
 
 // ensureProg makes sure dir/prog exists after a custom build command.
 // If the build produced a differently-named binary (e.g. "redis-server"),
+// sandboxBinaryPath returns the path of the compiled binary inside dir.
+// The name is platform-specific (prog on unix, prog.exe on Windows).
+func sandboxBinaryPath(dir string) string {
+	return filepath.Join(dir, sandboxBinaryName())
+}
+
+// ensureProg finds the binary produced by a custom build command and
 // it renames it to "prog" so the subsequent lang.Execute() call can find it.
 func ensureProg(dir string) {
-	progPath := filepath.Join(dir, "prog")
+	progPath := sandboxBinaryPath(dir)
 	if _, err := os.Stat(progPath); err == nil {
 		return
 	}
@@ -407,7 +413,7 @@ func CompileDebug(lang Language, files map[string]string, buildCmd string, extra
 			return nil, r
 		}
 		ensureProg(dir)
-		return &DebugBuild{BinaryPath: filepath.Join(dir, "prog"), dir: dir}, &Result{}
+		return &DebugBuild{BinaryPath: sandboxBinaryPath(dir), dir: dir}, &Result{}
 	}
 
 	srcPaths := primarySrcPaths(dir, lang, files)
@@ -424,7 +430,7 @@ func CompileDebug(lang Language, files map[string]string, buildCmd string, extra
 		os.RemoveAll(dir)
 		return nil, r
 	}
-	return &DebugBuild{BinaryPath: filepath.Join(dir, "prog"), dir: dir}, &Result{}
+	return &DebugBuild{BinaryPath: sandboxBinaryPath(dir), dir: dir}, &Result{}
 }
 
 // GenerateAssembly produces the assembly listing for the primary source file.
@@ -666,7 +672,7 @@ func RunDebugger(command string, args []string) (writeFn func([]byte) error, eve
 // registration time, so the sandbox needs no host-specific PATH additions.
 func sandboxEnv(dir string, extraEnv []string) []string {
 	env := []string{
-		"PATH=/usr/local/bin:/usr/bin:/bin",
+		"PATH=" + sandboxPathEnv(),
 		"HOME=" + dir,
 		"TMPDIR=" + dir,
 		"TEMP=" + dir,
@@ -681,7 +687,7 @@ func sandboxEnv(dir string, extraEnv []string) []string {
 }
 
 func stripDir(s, dir string) string {
-	return strings.ReplaceAll(s, dir+"/", "")
+	return strings.ReplaceAll(s, dir+string(filepath.Separator), "")
 }
 
 func appendSlice(a, b []string) []string {

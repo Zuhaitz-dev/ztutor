@@ -122,3 +122,26 @@ func debuggerSysProcAttr() *syscall.SysProcAttr { return interactiveSysProcAttr(
 func applyInteractiveIsolation(_ *exec.Cmd) func() {
 	return func() {}
 }
+
+// exitSignalInfo returns the terminating signal when execErr is a signal-caused
+// process exit (128+sig semantics), or false otherwise.
+func exitSignalInfo(execErr error) (int, bool) {
+	exitErr, ok := execErr.(*exec.ExitError)
+	if !ok {
+		return 0, false
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	if !ok || !status.Signaled() {
+		return 0, false
+	}
+	return int(status.Signal()), true
+}
+
+func sandboxBinaryName() string { return "prog" }
+
+// makeExecutable sets the exec bit on a sandbox binary/dir (unix only).
+func makeExecutable(path string) error {
+	return os.Chmod(path, 0755)
+}
+
+func sandboxPathEnv() string { return "/usr/local/bin:/usr/bin:/bin" }

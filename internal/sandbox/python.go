@@ -152,7 +152,7 @@ func pythonDebugBuild(dir, srcPath string, flags []string, compiler string) (*De
 }
 
 func rustCompile(dir, srcPath string, flags []string, compiler string) *Result {
-	outPath := filepath.Join(dir, "prog")
+	outPath := sandboxBinaryPath(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), Limits.MaxCompileRuntime)
 	defer cancel()
 
@@ -171,10 +171,10 @@ func rustCompile(dir, srcPath string, flags []string, compiler string) *Result {
 		return &Result{Error: fmt.Sprintf("compilation error:\n%s", stripDir(stderr.String(), dir))}
 	}
 
-	if err := os.Chmod(dir, 0755); err != nil {
+	if err := makeExecutable(dir); err != nil {
 		logutil.Warn("sandbox: chmod dir: %v", err)
 	}
-	if err := os.Chmod(outPath, 0755); err != nil {
+	if err := makeExecutable(outPath); err != nil {
 		logutil.Warn("sandbox: chmod binary: %v", err)
 	}
 	return &Result{Output: stripDir(stderr.String(), dir)}
@@ -203,7 +203,7 @@ func rustCompileDebug(dir, srcPath string, flags []string, compiler string) (*De
 	if result.Error != "" {
 		return nil, result
 	}
-	return &DebugBuild{BinaryPath: filepath.Join(dir, "prog"), dir: dir}, nil
+	return &DebugBuild{BinaryPath: sandboxBinaryPath(dir), dir: dir}, nil
 }
 
 func rustGenerateAssembly(dir, srcPath string, flags []string, compiler string) (string, error) {
