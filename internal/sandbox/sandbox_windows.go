@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -184,7 +185,9 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 
 	// Watch the child: when it exits, close the output pipe's write end AND the
 	// pseudo console (which holds its own copy of outW) so the reader drains any
-	// buffered output and then gets EOF. The exit code is delivered to wait().
+	// buffered output and then gets EOF. A short grace period after the process
+	// exits lets the console flush output written just before termination;
+	// otherwise fast-exiting programs lose their final output.
 	exitCodeCh := make(chan int, 1)
 	go func() {
 		_, _ = windows.WaitForSingleObject(pi.Process, windows.INFINITE)
@@ -192,6 +195,7 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		_ = windows.GetExitCodeProcess(pi.Process, &code)
 		conptyDebugf("wait exit code=%d", code)
 		outW.Close()
+		time.Sleep(150 * time.Millisecond)
 		windows.ClosePseudoConsole(console)
 		exitCodeCh <- int(code)
 	}()
