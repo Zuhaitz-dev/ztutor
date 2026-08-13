@@ -105,16 +105,31 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		windows.ClosePseudoConsole(console)
 		return nil, err
 	}
-	if err := attrList.Update(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, unsafe.Pointer(&console), unsafe.Sizeof(console)); err != nil {
+	// The PSEUDOCONSOLE attribute value is the HPCON handle itself, not a
+	// pointer to it. Pass it as a plain uintptr argument to avoid the
+	// unsafe.Pointer(uintptr(...)) conversion (which go vet rejects).
+	updateAttr := windows.NewLazySystemDLL("kernel32.dll").NewProc("UpdateProcThreadAttribute")
+	ret, _, e := updateAttr.Call(
+		uintptr(unsafe.Pointer(attrList.List())),
+		0,
+		uintptr(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE),
+		uintptr(console),
+		unsafe.Sizeof(console),
+		0,
+		0)
+	if ret == 0 {
 		attrList.Delete()
 		inW.Close()
 		outR.Close()
 		windows.ClosePseudoConsole(console)
-		return nil, err
+		return nil, e
 	}
 
 	startupInfo := windows.StartupInfoEx{
-		StartupInfo:             windows.StartupInfo{Cb: uint32(unsafe.Sizeof(windows.StartupInfoEx{}))},
+		StartupInfo: windows.StartupInfo{
+			Cb:    uint32(unsafe.Sizeof(windows.StartupInfoEx{})),
+			Flags: windows.STARTF_USESTDHANDLES,
+		},
 		ProcThreadAttributeList: attrList.List(),
 	}
 
