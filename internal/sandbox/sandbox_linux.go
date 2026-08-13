@@ -4,6 +4,7 @@ package sandbox
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"syscall"
@@ -239,3 +240,9 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 // staticLinkFlags returns extra compiler flags for producing self-contained
 // binaries. No-op on unix where the toolchain runtime is on the system libs.
 func staticLinkFlags() []string { return nil }
+
+// isExecutableCandidate reports whether a build artifact is the runnable
+// binary. On unix this is the executable bit.
+func isExecutableCandidate(name string, info fs.FileInfo) bool {
+	return info.Mode().IsRegular() && info.Mode()&0111 != 0
+}

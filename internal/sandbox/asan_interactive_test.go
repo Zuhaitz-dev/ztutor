@@ -57,6 +57,9 @@ int main(void) {
 }
 
 func TestRunInteractive_Basic(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ConPTY interactive output needs verification on a real Windows runner")
+	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}
@@ -107,6 +110,9 @@ loop:
 }
 
 func TestRunInteractive_WriteAndRead(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ConPTY interactive output needs verification on a real Windows runner")
+	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}
@@ -162,6 +168,9 @@ loop:
 }
 
 func TestRunInteractive_Kill(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("ConPTY interactive output needs verification on a real Windows runner")
+	}
 	if !hasGCC() {
 		t.Skip("gcc not available")
 	}

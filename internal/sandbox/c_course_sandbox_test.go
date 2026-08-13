@@ -148,8 +148,8 @@ clean:
 	if build.BinaryPath == "" {
 		t.Fatal("BinaryPath is empty")
 	}
-	if !strings.HasSuffix(build.BinaryPath, "/prog") {
-		t.Errorf("BinaryPath = %q, want .../prog (ensureProg should rename to prog)", build.BinaryPath)
+	if !strings.HasSuffix(build.BinaryPath, string(filepath.Separator)+sandboxBinaryName()) {
+		t.Errorf("BinaryPath = %q, want .../%s (ensureProg should rename to the sandbox binary)", build.BinaryPath, sandboxBinaryName())
 	}
 	if _, err := os.Stat(build.BinaryPath); err != nil {
 		t.Errorf("BinaryPath %s does not exist: %v", build.BinaryPath, err)

@@ -119,7 +119,9 @@ func cSyntaxCheck(dir, srcPath string, flags []string, compiler string) *Result 
 }
 
 func parseGCCDiagnostics(output string) []Diagnostic {
-	diagRE := regexp.MustCompile(`^[^:]+:(\d+):(\d+): (error|warning|note): (.+)$`)
+	// Allow an optional Windows drive-letter prefix (C:\...) before the file
+	// path; the rest of the path contains no ':' on either platform.
+	diagRE := regexp.MustCompile(`^(?:[A-Za-z]:)?[^:]+:(\d+):(\d+): (error|warning|note): (.+)$`)
 	var diags []Diagnostic
 	seen := map[string]bool{}
 	for _, line := range strings.Split(output, "\n") {

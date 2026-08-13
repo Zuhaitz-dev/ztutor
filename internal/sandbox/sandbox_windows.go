@@ -4,8 +4,10 @@ package sandbox
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -247,3 +249,17 @@ func buildEnvBlock(env []string) (*uint16, error) {
 // on the MinGW runtime DLLs (libgcc_s, libstdc++, winpthread) at run time —
 // the sandboxed environment's curated PATH does not include the compiler dir.
 func staticLinkFlags() []string { return []string{"-static"} }
+
+// isExecutableCandidate reports whether a build artifact is the runnable
+// binary. Windows files never carry the unix exec bit, so match known
+// executable extensions (MinGW gcc/make produce prog.exe).
+func isExecutableCandidate(name string, info fs.FileInfo) bool {
+	if !info.Mode().IsRegular() {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".exe", ".bat", ".cmd", ".com":
+		return true
+	}
+	return false
+}

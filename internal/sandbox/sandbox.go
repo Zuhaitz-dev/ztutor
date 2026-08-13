@@ -81,6 +81,10 @@ func ApplyLimitsFromEnv() {
 }
 
 func formatExecuteResult(stdout, stderr, dir string, ctxErr error, execErr error) *Result {
+	// On Windows the C runtime translates \n to \r\n on stdout/stderr; normalize
+	// so comparisons against expected output written with \n work everywhere.
+	stdout = strings.ReplaceAll(stdout, "\r\n", "\n")
+	stderr = strings.ReplaceAll(stderr, "\r\n", "\n")
 	output := stdout
 	if stderr != "" {
 		if output != "" {
@@ -262,14 +266,11 @@ func ensureProg(dir string) {
 		return
 	}
 	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
 		info, err := e.Info()
 		if err != nil {
 			continue
 		}
-		if info.Mode().IsRegular() && info.Mode()&0111 != 0 {
+		if isExecutableCandidate(e.Name(), info) {
 			if err := os.Rename(filepath.Join(dir, e.Name()), progPath); err != nil {
 				logutil.Warn("sandbox: ensureProg rename %s: %v", e.Name(), err)
 			}
