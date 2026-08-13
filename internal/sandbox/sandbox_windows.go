@@ -242,3 +242,8 @@ func buildEnvBlock(env []string) (*uint16, error) {
 	buf = append(buf, 0)
 	return &buf[0], nil
 }
+
+// staticLinkFlags statically links MinGW C/C++ binaries so they don't depend
+// on the MinGW runtime DLLs (libgcc_s, libstdc++, winpthread) at run time —
+// the sandboxed environment's curated PATH does not include the compiler dir.
+func staticLinkFlags() []string { return []string{"-static"} }

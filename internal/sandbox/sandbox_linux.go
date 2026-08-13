@@ -235,3 +235,7 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		},
 	}, nil
 }
+
+// staticLinkFlags returns extra compiler flags for producing self-contained
+// binaries. No-op on unix where the toolchain runtime is on the system libs.
+func staticLinkFlags() []string { return nil }

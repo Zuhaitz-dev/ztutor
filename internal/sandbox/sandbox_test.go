@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -280,11 +281,13 @@ func TestCompileDebug_Error(t *testing.T) {
 }
 
 func TestStripDir(t *testing.T) {
-	result := stripDir("/tmp/ztutor-sandbox-abc/main.c:4: error: foo", "/tmp/ztutor-sandbox-abc")
+	dir := filepath.Join(string(filepath.Separator), "tmp", "ztutor-sandbox-abc")
+	msg := filepath.Join(dir, "main.c") + ":4: error: foo"
+	result := stripDir(msg, dir)
 	if !strings.Contains(result, "main.c:4:") {
 		t.Errorf("stripDir = %q, should contain main.c:4:", result)
 	}
-	if strings.Contains(result, "/tmp/ztutor-sandbox-abc") {
+	if strings.Contains(result, dir) {
 		t.Errorf("stripDir should not contain temp dir, got %q", result)
 	}
 }

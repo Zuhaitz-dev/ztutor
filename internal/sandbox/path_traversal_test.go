@@ -20,7 +20,7 @@ func TestWriteFiles_RejectsDoubleDot(t *testing.T) {
 func TestWriteFiles_RejectsAbsolutePath(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		"/etc/passwd": "hacked",
+		filepath.Join(string(filepath.Separator), "etc", "passwd"): "hacked",
 	}
 	err := writeFiles(dir, files)
 	if err == nil {
@@ -82,7 +82,7 @@ func TestSafeWritePath_RejectsDoubleDot(t *testing.T) {
 }
 
 func TestSafeWritePath_RejectsAbsolute(t *testing.T) {
-	_, err := safeWritePath("/tmp/sandbox", "/etc/passwd")
+	_, err := safeWritePath("/tmp/sandbox", filepath.Join(string(filepath.Separator), "etc", "passwd"))
 	if err == nil {
 		t.Error("safeWritePath should reject absolute paths")
 	}
@@ -96,12 +96,13 @@ func TestSafeWritePath_RejectsEmpty(t *testing.T) {
 }
 
 func TestSafeWritePath_AcceptsValid(t *testing.T) {
-	path, err := safeWritePath("/tmp/sandbox", "main.c")
+	dir := filepath.Join("/tmp", "sandbox")
+	path, err := safeWritePath(dir, "main.c")
 	if err != nil {
 		t.Fatalf("safeWritePath valid: %v", err)
 	}
-	if path != "/tmp/sandbox/main.c" {
-		t.Errorf("safeWritePath returned %q, want /tmp/sandbox/main.c", path)
+	if want := filepath.Join(dir, "main.c"); path != want {
+		t.Errorf("safeWritePath returned %q, want %q", path, want)
 	}
 }
 

@@ -183,6 +183,9 @@ func LoadLang(dir, lang string) (*Lesson, error) {
 				return nil, err
 			}
 			raw := string(data)
+			// Normalize CRLF so frontmatter/body parsing is robust regardless of
+			// how the working tree was checked out (git autocrlf on Windows).
+			raw = strings.ReplaceAll(raw, "\r\n", "\n")
 			parsedFm, body := parseFrontmatter(raw)
 			fm = parsedFm
 			lesson.Difficulty = fm.Difficulty
@@ -501,6 +504,7 @@ func parseFrontmatter(raw string) (fm frontmatter, body string) {
 
 // splitBlocks splits text on "\n---\n" and returns non-empty trimmed blocks.
 func splitBlocks(raw string) []string {
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 	var out []string
 	for _, part := range strings.Split(strings.TrimSpace(raw), "\n---\n") {
 		part = strings.TrimSpace(part)

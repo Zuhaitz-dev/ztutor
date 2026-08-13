@@ -73,7 +73,8 @@ func cCompile(dir, srcPath string, flags []string, compiler string) *Result {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	args := append([]string{"-Wall", "-Wextra", "-O0"}, flags...)
+	args := append([]string{"-Wall", "-Wextra", "-O0"}, staticLinkFlags()...)
+	args = append(args, flags...)
 	args = append(args, "-o", outPath, srcPath)
 
 	cmd := exec.CommandContext(ctx, compiler, args...)

@@ -247,7 +247,7 @@ func TestEnsureProg_RenamesCustomBinary(t *testing.T) {
 		t.Fatalf("write custom binary: %v", err)
 	}
 
-	progPath := filepath.Join(dir, "prog")
+	progPath := sandboxBinaryPath(dir)
 	if _, err := os.Stat(progPath); err == nil {
 		t.Fatal("prog should not exist before ensureProg")
 	}
@@ -265,7 +265,7 @@ func TestEnsureProg_RenamesCustomBinary(t *testing.T) {
 func TestEnsureProg_NoOpWhenProgExists(t *testing.T) {
 	dir := t.TempDir()
 
-	progPath := filepath.Join(dir, "prog")
+	progPath := sandboxBinaryPath(dir)
 	if err := os.WriteFile(progPath, []byte("data"), 0644); err != nil {
 		t.Fatalf("write prog: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestEnsureProg_SkipsDirectories(t *testing.T) {
 	subDir := filepath.Join(dir, "subdir")
 	os.MkdirAll(subDir, 0755)
 
-	progPath := filepath.Join(dir, "prog")
+	progPath := sandboxBinaryPath(dir)
 	if _, err := os.Stat(progPath); err == nil {
 		t.Fatal("prog should not exist before ensureProg")
 	}

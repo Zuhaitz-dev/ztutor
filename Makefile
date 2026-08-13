@@ -133,8 +133,10 @@ fuzz: | $(GOCACHE_DIR)
 # Verify go.mod is tidy and the module sums verify.
 verify-mod: | $(GOCACHE_DIR)
 	$(GO) mod verify
-	@if [ -n "$$($(GO) mod tidy -diff 2>&1)" ]; then \
+	@diff="$$($(GO) mod tidy -diff 2>/dev/null)"; \
+	if [ -n "$$diff" ]; then \
 		echo "go.mod is not tidy. Run: go mod tidy"; \
+		echo "$$diff"; \
 		exit 1; \
 	fi
 
