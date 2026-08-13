@@ -18,7 +18,7 @@ jobs:
       - name: Extract release notes
         run: make release-notes VERSION="${{ github.ref_name }}" > /tmp/release-body.md
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           body_path: /tmp/release-body.md
           generate_release_notes: false
@@ -77,7 +77,7 @@ jobs:
           echo "ARCHIVE=${ARCHIVE}" >> $GITHUB_ENV
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ${{ env.ARCHIVE }}
           fail_on_unmatched_files: true
@@ -105,7 +105,7 @@ jobs:
           cat sha256sums.txt
 
       - name: Upload checksums
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: sha256sums.txt
 
