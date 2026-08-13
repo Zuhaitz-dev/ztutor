@@ -246,5 +246,3 @@ func staticLinkFlags() []string { return nil }
 func isExecutableCandidate(name string, info fs.FileInfo) bool {
 	return info.Mode().IsRegular() && info.Mode()&0111 != 0
 }
-
-func conptyDebugf(_ string, _ ...any) {}

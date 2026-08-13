@@ -564,7 +564,6 @@ func runPTYChild(command string, args []string, isolated bool) (func([]byte) err
 				ch <- InteractiveEvent{Text: text}
 			}
 			if err != nil {
-				conptyDebugf("read done n=%d err=%v", n, err)
 				break
 			}
 		}

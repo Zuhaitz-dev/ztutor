@@ -181,7 +181,6 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		return nil, fmt.Errorf("CreateProcess: %w", err)
 	}
 	attrList.Delete()
-	conptyDebugf("child started pid=%d command=%q", pi.ProcessId, command)
 
 	// Watch the child: when it exits, close the output pipe's write end AND the
 	// pseudo console (which holds its own copy of outW) so the reader drains any
@@ -193,7 +192,6 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		_, _ = windows.WaitForSingleObject(pi.Process, windows.INFINITE)
 		var code uint32
 		_ = windows.GetExitCodeProcess(pi.Process, &code)
-		conptyDebugf("wait exit code=%d", code)
 		outW.Close()
 		time.Sleep(150 * time.Millisecond)
 		windows.ClosePseudoConsole(console)
@@ -313,9 +311,4 @@ func isExecutableCandidate(name string, info fs.FileInfo) bool {
 		return true
 	}
 	return false
-}
-
-// conptyDebugf logs to stderr for debugging the ConPTY path on Windows CI.
-func conptyDebugf(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "[conpty] "+format+"\n", args...)
 }
