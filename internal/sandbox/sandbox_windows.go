@@ -183,9 +183,9 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 	attrList.Delete()
 	conptyDebugf("child started pid=%d command=%q", pi.ProcessId, command)
 
-	// Watch the child: when it exits, close the output pipe's write end so the
-	// reader drains any buffered output and then gets EOF. The exit code is
-	// delivered to wait() via a channel.
+	// Watch the child: when it exits, close the output pipe's write end AND the
+	// pseudo console (which holds its own copy of outW) so the reader drains any
+	// buffered output and then gets EOF. The exit code is delivered to wait().
 	exitCodeCh := make(chan int, 1)
 	go func() {
 		_, _ = windows.WaitForSingleObject(pi.Process, windows.INFINITE)
@@ -193,6 +193,7 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		_ = windows.GetExitCodeProcess(pi.Process, &code)
 		conptyDebugf("wait exit code=%d", code)
 		outW.Close()
+		windows.ClosePseudoConsole(console)
 		exitCodeCh <- int(code)
 	}()
 
@@ -201,7 +202,6 @@ func spawnPTYChild(command string, args []string, isolated bool) (*ptyChild, err
 		closeOnce.Do(func() {
 			windows.CloseHandle(pi.Thread)
 			windows.CloseHandle(pi.Process)
-			windows.ClosePseudoConsole(console)
 			inR.Close()
 			inW.Close()
 			outR.Close()
