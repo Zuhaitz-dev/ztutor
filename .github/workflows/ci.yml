@@ -45,6 +45,9 @@ jobs:
         run: make verify-mod
 
   # Broad static analysis (govet, staticcheck, errcheck, gosec, gocritic, ...).
+  # Installed via `go install` so golangci-lint is built with the job's Go
+  # toolchain (1.25), matching the module's go directive. Prebuilt release
+  # binaries compiled with older Go cannot load a go 1.25 module.
   golangci:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -57,9 +60,9 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.8
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+          make lint-full
 
   # Full test suite with toolchains, coverage gate, and race detector.
   test:
@@ -183,11 +186,14 @@ jobs:
         shell: pwsh
         run: choco install mingw -y --no-progress
 
+      # Best-effort: if rustup cannot be installed the rust tests simply skip.
       - name: Install Rust toolchain
         shell: pwsh
+        continue-on-error: true
         run: |
-          Invoke-WebRequest https://sh.rustup.rs -OutFile rustup-init.exe
-          .\rustup-init.exe -y --profile minimal
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -UseBasicParsing https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+          & .\rustup-init.exe -y --profile minimal
           echo "$env:USERPROFILE\.cargo\bin" | Out-File -Append $env:GITHUB_PATH
 
       - name: Test

@@ -3,6 +3,7 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 GOFLAGS := -buildvcs=false
+export GOFLAGS
 LDFLAGS := -X ztutor/internal/version.Version=$(VERSION) \
            -X ztutor/internal/version.Commit=$(COMMIT) \
            -X ztutor/internal/version.BuildDate=$(DATE)

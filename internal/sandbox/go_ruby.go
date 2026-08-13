@@ -117,7 +117,7 @@ func goSyntaxCheck(dir, srcPath string, flags []string, compiler string) *Result
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	args := []string{"build", "-o", "/dev/null"}
+	args := []string{"build", "-o", os.DevNull}
 	args = append(args, flags...)
 	args = append(args, srcPath)
 
@@ -147,7 +147,7 @@ func goGenerateAssembly(dir, srcPath string, flags []string, compiler string) (s
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	args := []string{"build", "-gcflags", "-S", "-o", "/dev/null"}
+	args := []string{"build", "-gcflags", "-S", "-o", os.DevNull}
 	args = append(args, flags...)
 	args = append(args, srcPath)
 

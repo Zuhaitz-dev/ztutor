@@ -212,7 +212,7 @@ func rustGenerateAssembly(dir, srcPath string, flags []string, compiler string) 
 
 	args := []string{"--emit", "asm", "-C", "opt-level=0"}
 	args = append(args, flags...)
-	args = append(args, "-o", filepath.Join(dir, "out"), srcPath)
+	args = append(args, "-o", filepath.Join(dir, "out.s"), srcPath)
 
 	cmd := exec.CommandContext(ctx, compiler, args...)
 	var stderr bytes.Buffer

@@ -162,7 +162,7 @@ func cGenerateAssembly(dir, srcPath string, flags []string, compiler string) (st
 	defer cancel()
 
 	args := append([]string{"-S", "-masm=intel", "-fno-asynchronous-unwind-tables", "-fno-pic", "-Wall", "-Wextra"}, flags...)
-	args = append(args, "-o", "/dev/stdout", srcPath)
+	args = append(args, "-o", "-", srcPath)
 
 	cmd := exec.CommandContext(ctx, compiler, args...)
 	var stdout, stderr bytes.Buffer
