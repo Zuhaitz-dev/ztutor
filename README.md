@@ -116,6 +116,34 @@ sudo systemctl enable --now ztutor
 
 The default SSH port is 2222. To use port 22, set `"addr": ":22"` in `ztutor.json` or use a reverse proxy.
 
+### Windows
+
+The client (`ztutor.exe`) and server (`ztutord.exe`) build and run natively on Windows. Compile, run, tests, remote execution, the interactive mode, and the in-TUI debugger all work. Because Windows has no Linux namespace isolation, the sandbox falls back to per-process resource limits (none on Windows) — the same degraded posture as macOS.
+
+Requirements for running student code on a Windows host:
+
+- **C/C++** — MinGW-w64 (`gcc`, `g++`), e.g. `choco install mingw`
+- **Python** — Python 3 on `PATH`
+- **Rust** — rustup + the stable toolchain
+- **Go** — the Go toolchain
+- **Ruby / Java** — ruby, a JRE
+- **Debugger** — GDB (MinGW-w64 provides `gdb.exe`) for C/C++; dlv for Go
+
+Run the server from a terminal:
+
+```powershell
+.\ztutord.exe -local      # local dashboard in this terminal + SSH server
+```
+
+Run it as a service:
+
+```powershell
+sc.exe create ztutor binPath= "C:\ztutor\ztutord.exe" start= auto
+sc.exe start ztutor
+```
+
+Student code and lesson content are written to the directory the server runs in; point `ztutor.json`'s `courses_dir` and `db.path` somewhere writable.
+
 ## Configuration
 
 Create `ztutor.json` next to the binary:

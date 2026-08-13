@@ -5,6 +5,7 @@
 ### Added
 - Everything is now open. All courses and lessons are available to every user.
 - First account created on a fresh server is always the admin account.
+- Windows support: the client and server build and run natively; the sandbox compiles, runs, and tests student code, and interactive mode plus the in-TUI debugger work via ConPTY. Builds ship as `ztutor.exe`/`ztutord.exe`. Windows CI (build + vet, then the full suite with MinGW).
 
 ### Changed
 - Dependencies moved to current major releases: bubbletea v1, bubbles v1, glamour v1, lipgloss v1, modernc.org/sqlite v1.56, chroma v2.27. Requires Go 1.25+.

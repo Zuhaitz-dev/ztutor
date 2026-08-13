@@ -13,6 +13,9 @@ GOFILES := $(shell find . -type f -name '*.go' -not -path './vendor/*')
 STATICCHECK := $(or $(shell command -v staticcheck 2>/dev/null),$(shell go env GOPATH)/bin/staticcheck)
 GOLANGCI_LINT := $(or $(shell command -v golangci-lint 2>/dev/null),$(shell go env GOPATH)/bin/golangci-lint)
 
+# .exe suffix for Windows builds.
+EXE := $(if $(filter windows,$(shell go env GOOS)),.exe)
+
 # release helpers
 SEMVER_RE := ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$$
 
@@ -56,10 +59,10 @@ $(GOCACHE_DIR):
 	mkdir -p $@
 
 build-client: | $(GOCACHE_DIR)
-	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutor ./cmd/ztutor/
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutor$(EXE) ./cmd/ztutor/
 
 build-server: | $(GOCACHE_DIR)
-	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutord ./cmd/ztutord/
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o ztutord$(EXE) ./cmd/ztutord/
 
 IMAGE ?= ztutor
 
@@ -76,13 +79,13 @@ docker-push:
 	docker push $(IMAGE):latest
 
 run: build-client
-	./ztutor
+	./ztutor$(EXE)
 
 run-server: build-server
-	./ztutord
+	./ztutord$(EXE)
 
 clean:
-	rm -f ztutor ztutord ztutor.db ztutor_host_key
+	rm -f ztutor ztutord ztutor.exe ztutord.exe ztutor.db ztutor_host_key
 
 reset: clean
 	rm -f $(HOME)/.local/share/ztutor/ztutor.db $(HOME)/.local/share/ztutor/ztutor_host_key
