@@ -376,26 +376,26 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				switch msg.Type {
 				case tea.KeyRunes:
 					for _, r := range msg.Runes {
-						es.interWrite([]byte(string(r)))
+						_ = es.interWrite([]byte(string(r)))
 					}
 				case tea.KeySpace:
-					es.interWrite([]byte(" "))
+					_ = es.interWrite([]byte(" "))
 				case tea.KeyEnter:
-					es.interWrite([]byte("\n"))
+					_ = es.interWrite([]byte("\n"))
 				case tea.KeyTab:
-					es.interWrite([]byte("\t"))
+					_ = es.interWrite([]byte("\t"))
 				case tea.KeyBackspace:
-					es.interWrite([]byte("\x7f"))
+					_ = es.interWrite([]byte("\x7f"))
 				case tea.KeyCtrlC:
-					es.interWrite([]byte("\x03"))
+					_ = es.interWrite([]byte("\x03"))
 				case tea.KeyCtrlD:
-					es.interWrite([]byte("\x04"))
+					_ = es.interWrite([]byte("\x04"))
 				case tea.KeyEscape:
-					es.interWrite([]byte("\x1b"))
+					_ = es.interWrite([]byte("\x1b"))
 				case tea.KeyUp, tea.KeyDown, tea.KeyLeft, tea.KeyRight:
 					seq := arrowSeq(msg.Type)
 					if seq != "" {
-						es.interWrite([]byte(seq))
+						_ = es.interWrite([]byte(seq))
 					}
 				}
 				return es, nil
@@ -824,9 +824,9 @@ func (es *ExerciseScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return es, nil
 		}
 		gdbInitPath := gdbInitFile.Name()
-		gdbInitFile.WriteString("define shell\n")
-		gdbInitFile.WriteString("printf \"The shell command is disabled in the ztutor sandbox.\\n\"\n")
-		gdbInitFile.WriteString("end\n")
+		_, _ = gdbInitFile.WriteString("define shell\n")
+		_, _ = gdbInitFile.WriteString("printf \"The shell command is disabled in the ztutor sandbox.\\n\"\n")
+		_, _ = gdbInitFile.WriteString("end\n")
 		gdbInitFile.Close()
 		es.gdbInitPath = gdbInitPath
 		gdbArgs := []string{"-q",

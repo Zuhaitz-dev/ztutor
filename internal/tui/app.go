@@ -505,7 +505,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case achievementEventMsg:
 		a.grantAchievements(msg.events)
 		return a, nil
-
 	}
 
 	if a.current != nil {

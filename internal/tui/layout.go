@@ -107,14 +107,9 @@ func (l *TerminalLayout) Render() string {
 		if totalWeight == 0 {
 			totalWeight = flexCount
 		}
-		// When remaining is tight, shrink MinH proportionally so no slot
-		// forces an overallocation past the canvas.
-		effectiveMinH := flexCount
-		if remaining/flexCount < 1 {
-			effectiveMinH = 1
-		} else {
-			effectiveMinH = 1 // at least 1 line per flex slot
-		}
+		// At least 1 line per flex slot so no slot forces an overallocation
+		// past the canvas when remaining is tight.
+		effectiveMinH := 1
 		allocated := 0
 		for i, idx := range flexIndices {
 			s := l.slots[idx]

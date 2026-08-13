@@ -56,7 +56,7 @@ func (m *adminStudentListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.users) > 0 {
 				u := m.users[m.offset]
 				newState := !u.Enabled
-				m.db.SetUserEnabled(u.Username, newState)
+				_ = m.db.SetUserEnabled(u.Username, newState)
 				return m, backCmd(adminStudentToggleMsg{username: u.Username, enabled: newState})
 			}
 		case "p":
@@ -131,7 +131,7 @@ func (m *adminStudentListModel) View() string {
 			if i == m.offset {
 				line = cursorStyle.Render(line + cursor)
 			} else {
-				line = line + noCursor
+				line += noCursor
 			}
 		} else {
 			line = badge + " " + fmt.Sprintf("%-20s", u.Username) + " " + role
@@ -497,9 +497,9 @@ func (m *adminStudentDetailModel) updateEnrollment(msg tea.KeyMsg) (tea.Model, t
 		if m.enrollOffset < len(courses) {
 			c := courses[m.enrollOffset]
 			if m.db.IsEnrolled(m.username, c.ID) {
-				m.db.DeleteEnrollment(m.username, c.ID)
+				_ = m.db.DeleteEnrollment(m.username, c.ID)
 			} else {
-				m.db.Enroll(m.username, c.ID)
+				_ = m.db.Enroll(m.username, c.ID)
 			}
 		}
 	case "esc", "q":

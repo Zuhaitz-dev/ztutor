@@ -190,7 +190,9 @@ func rustCheck(dir, srcPath string, flags []string, compiler string) *Result {
 	cmd := exec.CommandContext(ctx, compiler, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return &Result{Output: stderr.String(), Error: err.Error()}
+	}
 
 	return &Result{Output: stderr.String()}
 }

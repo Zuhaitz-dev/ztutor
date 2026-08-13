@@ -812,7 +812,7 @@ func (m *adminLessonCreateModel) saveLesson() error {
 	if body != "" {
 		lessonMD += "\n" + body + "\n"
 	}
-	if err := os.WriteFile(filepath.Join(dir, "lesson.md"), []byte(lessonMD), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "lesson.md"), []byte(lessonMD), 0600); err != nil {
 		return err
 	}
 
@@ -821,7 +821,7 @@ func (m *adminLessonCreateModel) saveLesson() error {
 		if lang := sandbox.GetLanguage(m.language); lang != nil {
 			ext = lang.SourceExtension()
 		}
-		if err := os.WriteFile(filepath.Join(dir, "exercise"+ext), []byte(code+"\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "exercise"+ext), []byte(code+"\n"), 0600); err != nil {
 			return err
 		}
 	}
@@ -833,13 +833,13 @@ func (m *adminLessonCreateModel) saveLesson() error {
 		expected = m.manualExpected.Value()
 	}
 	if strings.TrimSpace(expected) != "" {
-		if err := os.WriteFile(filepath.Join(dir, "expected.txt"), []byte(expected), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "expected.txt"), []byte(expected), 0600); err != nil {
 			return err
 		}
 	}
 
 	if hints := strings.TrimSpace(m.hintsArea.Value()); hints != "" {
-		if err := os.WriteFile(filepath.Join(dir, "hints.txt"), []byte(hints+"\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "hints.txt"), []byte(hints+"\n"), 0600); err != nil {
 			return err
 		}
 	}

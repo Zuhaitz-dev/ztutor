@@ -25,3 +25,9 @@ func TestCheckUpdateFlag(t *testing.T) {
 		t.Errorf("--check-update output = %q, want 'up to date'", string(out))
 	}
 }
+
+func TestAdminUsername_NonEmpty(t *testing.T) {
+	if got := adminUsername(); got == "" {
+		t.Fatal("adminUsername returned empty string")
+	}
+}

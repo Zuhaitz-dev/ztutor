@@ -45,9 +45,10 @@ func pathKey(s string) tea.KeyMsg {
 	}
 }
 
-func pathUpdate(ps *PathScreen, key string) (*PathScreen, tea.Cmd) {
+func pathUpdate(t *testing.T, ps *PathScreen, key string) (*PathScreen, tea.Cmd) {
+	t.Helper()
 	m, cmd := ps.Update(pathKey(key))
-	return m.(*PathScreen), cmd
+	return mustModel[*PathScreen](t, m), cmd
 }
 
 // TestBuildPathEntries_Status verifies the completed/available/locked logic.
@@ -207,18 +208,18 @@ func TestPathScreen_Nav_MovesCursorDown(t *testing.T) {
 		t.Fatalf("initial cursor = %d, want 0", ps.cursor)
 	}
 
-	ps, _ = pathUpdate(ps, "j")
+	ps, _ = pathUpdate(t, ps, "j")
 	if ps.cursor != 1 {
 		t.Errorf("cursor after j = %d, want 1", ps.cursor)
 	}
 
-	ps, _ = pathUpdate(ps, "down")
+	ps, _ = pathUpdate(t, ps, "down")
 	if ps.cursor != 2 {
 		t.Errorf("cursor after ↓ = %d, want 2", ps.cursor)
 	}
 
 	// At last entry, further down is a no-op.
-	ps, _ = pathUpdate(ps, "j")
+	ps, _ = pathUpdate(t, ps, "j")
 	if ps.cursor != 2 {
 		t.Errorf("cursor clamped at end: got %d, want 2", ps.cursor)
 	}
@@ -229,24 +230,24 @@ func TestPathScreen_Nav_MovesCursorUp(t *testing.T) {
 	c := makePathCourse(3)
 	ps := NewPathScreen(c, map[string]int{}, "", i18n.New("en"), 80, 24)
 
-	ps, _ = pathUpdate(ps, "j")
-	ps, _ = pathUpdate(ps, "j")
+	ps, _ = pathUpdate(t, ps, "j")
+	ps, _ = pathUpdate(t, ps, "j")
 	if ps.cursor != 2 {
 		t.Fatalf("setup: cursor = %d, want 2", ps.cursor)
 	}
 
-	ps, _ = pathUpdate(ps, "k")
+	ps, _ = pathUpdate(t, ps, "k")
 	if ps.cursor != 1 {
 		t.Errorf("cursor after k = %d, want 1", ps.cursor)
 	}
 
-	ps, _ = pathUpdate(ps, "up")
+	ps, _ = pathUpdate(t, ps, "up")
 	if ps.cursor != 0 {
 		t.Errorf("cursor after ↑ = %d, want 0", ps.cursor)
 	}
 
 	// At first entry, further up is a no-op.
-	ps, _ = pathUpdate(ps, "k")
+	ps, _ = pathUpdate(t, ps, "k")
 	if ps.cursor != 0 {
 		t.Errorf("cursor clamped at start: got %d, want 0", ps.cursor)
 	}
@@ -257,7 +258,7 @@ func TestPathScreen_EscNavigatesToMenu(t *testing.T) {
 	c := makePathCourse(2)
 	ps := NewPathScreen(c, map[string]int{}, "", i18n.New("en"), 80, 24)
 
-	_, cmd := pathUpdate(ps, "esc")
+	_, cmd := pathUpdate(t, ps, "esc")
 	if cmd == nil {
 		t.Fatal("esc should produce a cmd")
 	}
@@ -272,7 +273,7 @@ func TestPathScreen_QNavigatesToMenu(t *testing.T) {
 	c := makePathCourse(2)
 	ps := NewPathScreen(c, map[string]int{}, "", i18n.New("en"), 80, 24)
 
-	_, cmd := pathUpdate(ps, "q")
+	_, cmd := pathUpdate(t, ps, "q")
 	if cmd == nil {
 		t.Fatal("q should produce a cmd")
 	}
@@ -287,12 +288,12 @@ func TestPathScreen_EnterLockedDoesNothing(t *testing.T) {
 	ps := NewPathScreen(c, map[string]int{}, "", i18n.New("en"), 80, 24)
 
 	// Move cursor to index 1 (locked with no progress).
-	ps, _ = pathUpdate(ps, "j")
+	ps, _ = pathUpdate(t, ps, "j")
 	if ps.entries[ps.cursor].status != pathLocked {
 		t.Skipf("entry[%d] is not locked (status=%v); skip", ps.cursor, ps.entries[ps.cursor].status)
 	}
 
-	_, cmd := pathUpdate(ps, "enter")
+	_, cmd := pathUpdate(t, ps, "enter")
 	if cmd != nil {
 		t.Errorf("enter on locked node returned non-nil cmd, want nil")
 	}
@@ -308,7 +309,7 @@ func TestPathScreen_EnterAvailableExerciseSendsLessonNavigate(t *testing.T) {
 		t.Fatalf("expected cursor on available entry, got %v", ps.entries[ps.cursor].status)
 	}
 
-	_, cmd := pathUpdate(ps, "enter")
+	_, cmd := pathUpdate(t, ps, "enter")
 	if cmd == nil {
 		t.Fatal("enter on available exercise should produce a cmd")
 	}
@@ -324,7 +325,7 @@ func TestPathScreen_EnterReadOnlySendsLessonNavigate(t *testing.T) {
 	c.Sections[0].Lessons[0].Exercise = "" // make it read-only
 	ps := NewPathScreen(c, map[string]int{}, "", i18n.New("en"), 80, 24)
 
-	_, cmd := pathUpdate(ps, "enter")
+	_, cmd := pathUpdate(t, ps, "enter")
 	if cmd == nil {
 		t.Fatal("enter on available read-only lesson should produce a cmd")
 	}

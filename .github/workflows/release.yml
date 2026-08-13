@@ -60,6 +60,12 @@ jobs:
           go build -buildvcs=false -ldflags "${LDFLAGS}" -o ztutor ./cmd/ztutor/
           go build -buildvcs=false -ldflags "${LDFLAGS}" -o ztutord ./cmd/ztutord/
 
+      - name: Smoke test
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        run: |
+          ./ztutor --version | grep "${{ github.ref_name }}"
+          ./ztutord --version | grep "${{ github.ref_name }}"
+
       - name: Package
         run: |
           ARCHIVE=ztutor-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
@@ -75,3 +81,63 @@ jobs:
         with:
           files: ${{ env.ARCHIVE }}
           fail_on_unmatched_files: true
+
+  # Aggregate checksums for all release assets.
+  checksums:
+    name: Generate checksums
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ github.ref_name }}" --dir assets
+
+      - name: Write sha256sums
+        run: |
+          cd assets
+          sha256sum * > ../sha256sums.txt
+          cd ..
+          cat sha256sums.txt
+
+      - name: Upload checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sha256sums.txt
+
+  # Build and publish the container image to GHCR.
+  docker:
+    name: Publish Docker image
+    needs: create-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          IMAGE=ghcr.io/zuhaitz-dev/ztutor
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          docker build -f Dockerfile.prod \
+            --build-arg VERSION=${{ github.ref_name }} \
+            --build-arg COMMIT=${COMMIT} \
+            --build-arg BUILD_DATE=${DATE} \
+            -t ${IMAGE}:${{ github.ref_name }} \
+            -t ${IMAGE}:latest .
+          docker push ${IMAGE}:${{ github.ref_name }}
+          docker push ${IMAGE}:latest

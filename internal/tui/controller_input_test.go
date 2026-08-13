@@ -33,7 +33,10 @@ func TestNormalizeInputMsg_ControllerAliases(t *testing.T) {
 
 func TestNormalizeInputMsg_LeavesKeyboardInputAlone(t *testing.T) {
 	in := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
-	got := normalizeInputMsg(in).(tea.KeyMsg)
+	got, ok := normalizeInputMsg(in).(tea.KeyMsg)
+	if !ok {
+		t.Fatalf("normalizeInputMsg = %T, want tea.KeyMsg", normalizeInputMsg(in))
+	}
 	if got.String() != KeyDownVim {
 		t.Fatalf("keyboard key changed to %q", got.String())
 	}

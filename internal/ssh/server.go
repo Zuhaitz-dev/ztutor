@@ -175,7 +175,7 @@ func (s *Server) ListenAndServe() error {
 	} else {
 		tokenPreview := s.config.SetupToken[:20]
 		logutil.Info("no users yet - setup token prefix: %s...", tokenPreview)
-		logutil.Info("  connect to create the first account: ssh <any-name>@localhost -p %d", listener.Addr().(*net.TCPAddr).Port)
+		logutil.Info("  connect to create the first account: ssh <any-name>@localhost -p %d", listenPort(listener))
 	}
 
 	var sem chan struct{}
@@ -282,7 +282,7 @@ func (s *Server) handleConnection(conn net.Conn, config *gossh.ServerConfig) {
 
 	for ch := range chans {
 		if ch.ChannelType() != "session" {
-			ch.Reject(gossh.UnknownChannelType, "only session channels allowed")
+			_ = ch.Reject(gossh.UnknownChannelType, "only session channels allowed")
 			continue
 		}
 
@@ -343,14 +343,14 @@ func (s *Server) handleSession(channel gossh.Channel, requests <-chan *gossh.Req
 					initialRows = int(binary.BigEndian.Uint32(req.Payload[offset+4:]))
 				}
 			}
-			req.Reply(true, nil)
+			_ = req.Reply(true, nil)
 
 		case "shell":
 			if !ptyRequested {
-				req.Reply(false, nil)
+				_ = req.Reply(false, nil)
 				return
 			}
-			req.Reply(true, nil)
+			_ = req.Reply(true, nil)
 			if isAdmin {
 				s.runAdminTUI(channel, requests, username, initialCols, initialRows, termName)
 			} else {
@@ -359,7 +359,7 @@ func (s *Server) handleSession(channel gossh.Channel, requests <-chan *gossh.Req
 			return
 
 		default:
-			req.Reply(false, nil)
+			_ = req.Reply(false, nil)
 		}
 	}
 }
@@ -376,6 +376,15 @@ func colorProfileForTerm(termName string) termenv.Profile {
 		return termenv.ANSI
 	}
 	return termenv.Ascii
+}
+
+// listenPort returns the TCP port of the given listener, or 0 when the
+// listener is not TCP (e.g. a unix socket).
+func listenPort(l net.Listener) int {
+	if addr, ok := l.Addr().(*net.TCPAddr); ok {
+		return addr.Port
+	}
+	return 0
 }
 
 func (s *Server) runAdminTUI(channel gossh.Channel, requests <-chan *gossh.Request, username string, cols, rows int, termName string) {
@@ -421,7 +430,7 @@ func (s *Server) runAdminTUI(channel gossh.Channel, requests <-chan *gossh.Reque
 					p.Send(tea.WindowSizeMsg{Width: w, Height: h})
 				}
 				if req.WantReply {
-					req.Reply(false, nil)
+					_ = req.Reply(false, nil)
 				}
 			}
 		}
@@ -488,7 +497,7 @@ func (s *Server) runTUI(channel gossh.Channel, requests <-chan *gossh.Request, u
 					p.Send(tea.WindowSizeMsg{Width: w, Height: h})
 				}
 				if req.WantReply {
-					req.Reply(false, nil)
+					_ = req.Reply(false, nil)
 				}
 			}
 		}

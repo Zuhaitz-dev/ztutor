@@ -130,7 +130,7 @@ func TestSwitchSection_SetsCompatLine(t *testing.T) {
 		return true
 	}, testLocale(), 80, 24)
 	model, _ := m.enterCourse(course)
-	menu := model.(*MenuScreen)
+	menu := mustModel[*MenuScreen](t, model)
 
 	// Clear any compat line from entering the course.
 	menu.compatLine = ""

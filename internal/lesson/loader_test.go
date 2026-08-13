@@ -330,7 +330,7 @@ int main(void) {
 	if len(lesson.References) != 2 {
 		t.Errorf("References = %v", lesson.References)
 	}
-	if string(lesson.Exercise) == "" {
+	if lesson.Exercise == "" {
 		t.Error("Exercise is empty")
 	}
 	if len(lesson.Hints) != 2 {

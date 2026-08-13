@@ -75,7 +75,7 @@ func appendAndSaveAchievement(a Achievement, path string) error {
 	if dir := filepath.Dir(path); dir != "." {
 		_ = os.MkdirAll(dir, 0755)
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 func deleteAndSaveAchievement(id, path string) error {
@@ -93,7 +93,7 @@ func deleteAndSaveAchievement(id, path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // AllAchievements returns built-in and custom achievements combined.

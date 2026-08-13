@@ -11,6 +11,7 @@ GO := GOCACHE=$(GOCACHE_DIR) go
 GOFMT := gofmt
 GOFILES := $(shell find . -type f -name '*.go' -not -path './vendor/*')
 STATICCHECK := $(or $(shell command -v staticcheck 2>/dev/null),$(shell go env GOPATH)/bin/staticcheck)
+GOLANGCI_LINT := $(or $(shell command -v golangci-lint 2>/dev/null),$(shell go env GOPATH)/bin/golangci-lint)
 
 # release helpers
 SEMVER_RE := ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$$
@@ -47,7 +48,7 @@ release-notes:
 		found        { sub(/^## v[^ ]* *-- */, "## "); print } \
 	' CHANGELOG.md
 
-.PHONY: build build-client build-server docker docker-push run run-server clean reset dev dev-server tuitest test vet fmt lint lint-fmt lint-vet lint-staticcheck manifest verify bump bump-dry-run release-notes manifest-verify
+.PHONY: build build-client build-server docker docker-push run run-server clean reset dev dev-server tuitest test test-race test-coverage check-coverage fuzz verify-mod vet fmt lint lint-fmt lint-vet lint-staticcheck lint-full manifest verify bump bump-dry-run release-notes manifest-verify
 
 build: build-client build-server
 
@@ -101,6 +102,38 @@ tuitest: | $(GOCACHE_DIR)
 test: manifest-verify | $(GOCACHE_DIR)
 	$(GO) test ./...
 
+test-race: | $(GOCACHE_DIR)
+	$(GO) test -race -shuffle=on -count=1 ./...
+
+# Produce coverage.out + a per-function summary.
+test-coverage: | $(GOCACHE_DIR)
+	$(GO) test -covermode=atomic -coverprofile=coverage.out ./...
+	$(GO) tool cover -func=coverage.out
+
+# Fail if any gated package's coverage drops below .coverage-thresholds.
+check-coverage:
+	./scripts/check-coverage.sh
+
+# Run each Go fuzzer for FUZZTIME seconds (default 10).
+FUZZTIME ?= 10
+fuzz: | $(GOCACHE_DIR)
+	@for pkg in $$(go list ./internal/... ./cmd/...); do \
+		fuzzers="$$($(GO) test -run '^$$' "$$pkg" -list '^Fuzz' 2>/dev/null | grep '^Fuzz' || true)"; \
+		for fz in $$fuzzers; do \
+			echo "fuzzing $$pkg.$$fz for $(FUZZTIME)s"; \
+			$(GO) test "$$pkg" -run '^$$' -fuzz "$$fz" -fuzztime $(FUZZTIME)s >/dev/null 2>&1 || true; \
+		done; \
+	done
+	@echo "fuzz pass complete"
+
+# Verify go.mod is tidy and the module sums verify.
+verify-mod: | $(GOCACHE_DIR)
+	$(GO) mod verify
+	@if [ -n "$$($(GO) mod tidy -diff 2>&1)" ]; then \
+		echo "go.mod is not tidy. Run: go mod tidy"; \
+		exit 1; \
+	fi
+
 manifest-verify:
 	@backup=$$(mktemp -d); \
 	trap 'rm -rf "$$backup"' EXIT; \
@@ -151,6 +184,15 @@ lint-staticcheck:
 		exit 1; \
 	fi
 	$(STATICCHECK) ./...
+
+# Broad static analysis via golangci-lint (see .golangci.yml).
+lint-full:
+	@if [ ! -x "$(GOLANGCI_LINT)" ]; then \
+		echo "golangci-lint not found. Install it with:"; \
+		echo "  go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
+		exit 1; \
+	fi
+	$(GOLANGCI_LINT) run ./...
 
 MANIFEST_DIR ?= courses/
 

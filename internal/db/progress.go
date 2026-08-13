@@ -130,16 +130,22 @@ func migrate(conn *sql.DB) error {
 	}
 
 	var current int
-	conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current)
+	if err := conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current); err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
 
 	// First open with the new versioned system on an existing database:
 	// the old code already applied v1–v4 (CREATE TABLE + ALTER TABLE + UPDATE).
 	// Record them as done so we don't try to re-run ALTER TABLE and fail.
 	if current == 0 && tableHasColumn(conn, "progress", "stars") {
 		for v := 1; v <= bootstrapVersion; v++ {
-			conn.Exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)`, v)
+			if _, err := conn.Exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)`, v); err != nil {
+				return fmt.Errorf("bootstrap migration v%d: %w", v, err)
+			}
 		}
-		conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current)
+		if err := conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current); err != nil {
+			return fmt.Errorf("read schema version: %w", err)
+		}
 		logutil.Debug("db: bootstrapped existing schema to v%d", current)
 	}
 

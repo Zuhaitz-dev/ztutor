@@ -154,7 +154,7 @@ func (a *AdminApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.current.Init()
 
 	case adminStudentToggleMsg:
-		a.db.SetUserEnabled(msg.username, msg.enabled)
+		_ = a.db.SetUserEnabled(msg.username, msg.enabled)
 		a.current = newAdminStudentList(a.db, a.loc, a.Width, a.Height)
 		return a, a.current.Init()
 

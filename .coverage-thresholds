@@ -1,0 +1,16 @@
+# Per-package coverage gate (percent). Values are just below current coverage
+# so the gate passes today; raise them as tests are added.
+# Format: package=percent   (blank lines and # comments allowed)
+
+internal/apputil=20
+internal/config=60
+internal/db=70
+internal/editor=25
+internal/i18n=85
+internal/lesson=60
+internal/remote=45
+internal/sandbox=50
+internal/ssh=65
+internal/tui=45
+internal/update=80
+internal/version=35

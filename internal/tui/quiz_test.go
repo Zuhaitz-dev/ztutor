@@ -41,7 +41,7 @@ func TestQuizScreenScoresAndCompletes(t *testing.T) {
 	screen := NewQuizScreen(q, 0, 80, 24, i18n.New("en"))
 
 	model, cmd := screen.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	screen = model.(*QuizScreen)
+	screen = mustModel[*QuizScreen](t, model)
 	if cmd != nil {
 		t.Fatal("first answer should not complete the quiz")
 	}
@@ -50,19 +50,19 @@ func TestQuizScreenScoresAndCompletes(t *testing.T) {
 	}
 
 	model, cmd = screen.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	screen = model.(*QuizScreen)
+	screen = mustModel[*QuizScreen](t, model)
 	if cmd != nil || screen.index != 1 {
 		t.Fatalf("second enter should advance to q2, index=%d cmd=%v", screen.index, cmd)
 	}
 
 	model, _ = screen.Update(tea.KeyMsg{Type: tea.KeyDown})
-	screen = model.(*QuizScreen)
+	screen = mustModel[*QuizScreen](t, model)
 	if screen.cursor != 1 {
 		t.Fatalf("cursor = %d, want 1", screen.cursor)
 	}
 
 	model, cmd = screen.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	screen = model.(*QuizScreen)
+	screen = mustModel[*QuizScreen](t, model)
 	if cmd != nil {
 		t.Fatal("second answer should show feedback before completing")
 	}

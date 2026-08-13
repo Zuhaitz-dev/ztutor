@@ -113,8 +113,6 @@ func (w *FileListWidget) View() string {
 
 		line := padVis(prefix+name, innerW)
 		switch {
-		case i == w.activeIdx && i == w.cursor && w.focused:
-			b.WriteString(fileListItemActiveStyle.Render(line))
 		case i == w.activeIdx:
 			b.WriteString(fileListItemActiveStyle.Render(line))
 		case i == w.cursor && w.focused:

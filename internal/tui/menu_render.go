@@ -369,17 +369,9 @@ func (m *MenuScreen) renderCourseView(b *strings.Builder) string {
 	for i := m.courseOffset; i < len(courses) && i < m.courseOffset+ph; i++ {
 		line := m.renderCourseLine(courses[i], panelW)
 		if i == m.courseCursor {
-			if rtl {
-				b.WriteString(selSt.Render(line))
-			} else {
-				b.WriteString(selSt.Render(line))
-			}
+			b.WriteString(selSt.Render(line))
 		} else {
-			if rtl {
-				b.WriteString(itemSt.Render(line))
-			} else {
-				b.WriteString(itemSt.Render(line))
-			}
+			b.WriteString(itemSt.Render(line))
 		}
 		b.WriteString("\n")
 	}

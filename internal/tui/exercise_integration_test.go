@@ -98,7 +98,10 @@ int main(void) {
 
 	cmd := es.compileCmd("hello\n", nil, nil)
 	msg := cmd()
-	result := msg.(compileResultMsg)
+	result, ok := msg.(compileResultMsg)
+	if !ok {
+		t.Fatalf("msg = %T, want compileResultMsg", msg)
+	}
 	if result.err != nil {
 		t.Fatalf("compile error: %v", result.err)
 	}
@@ -120,7 +123,10 @@ func TestIntegration_SyntaxCheck(t *testing.T) {
 int main(void) { return 0; }`, "c")
 	cmd := es.syntaxCheckCmd(nil, 1)
 	msg := cmd()
-	diagMsg := msg.(diagResultMsg)
+	diagMsg, ok := msg.(diagResultMsg)
+	if !ok {
+		t.Fatalf("msg = %T, want diagResultMsg", msg)
+	}
 	errCount := 0
 	for _, d := range diagMsg.diags {
 		if d.Kind == "error" {
@@ -139,7 +145,7 @@ int main(void) {
 }`, "c")
 	cmd2 := es.syntaxCheckCmd(nil, 2)
 	msg2 := cmd2()
-	diagMsg2 := msg2.(diagResultMsg)
+	diagMsg2 := mustMsg[diagResultMsg](t, msg2)
 	if len(diagMsg2.diags) == 0 {
 		t.Fatal("expected at least one diagnostic")
 	}
@@ -155,7 +161,7 @@ func TestIntegration_GenerateAssembly(t *testing.T) {
 	es.editor.SwitchFile(`int add(int a, int b) { return a + b; }`, "c")
 	cmd := es.asmCmd(nil)
 	msg := cmd()
-	asmMsg := msg.(asmResultMsg)
+	asmMsg := mustMsg[asmResultMsg](t, msg)
 	if asmMsg.err != nil {
 		t.Fatalf("asm error: %v", asmMsg.err)
 	}
@@ -205,7 +211,7 @@ int main(void) {
 
 	cmd := es.runAllTestsCmd(nil, tests)
 	msg := cmd()
-	result := msg.(testRunResultMsg)
+	result := mustMsg[testRunResultMsg](t, msg)
 	if result.err != nil {
 		t.Fatalf("run error: %v", result.err)
 	}
@@ -257,7 +263,7 @@ func TestIntegration_CompileError(t *testing.T) {
 
 	cmd := es.compileCmd("", nil, nil)
 	msg := cmd()
-	result := msg.(compileResultMsg)
+	result := mustMsg[compileResultMsg](t, msg)
 	if result.err != nil {
 		t.Fatalf("unexpected error: %v", result.err)
 	}
@@ -330,7 +336,7 @@ int main(void) { printf("production\n"); return 0; }
 
 	cmd := es.compileCmd("", []string{"-DTEST_MODE"}, nil)
 	msg := cmd()
-	result := msg.(compileResultMsg)
+	result := mustMsg[compileResultMsg](t, msg)
 	if result.err != nil {
 		t.Fatalf("compile error: %v", result.err)
 	}
@@ -362,7 +368,7 @@ int main(int argc, char *argv[]) {
 
 	cmd := es.compileCmd("", nil, []string{"--verbose", "hello"})
 	msg := cmd()
-	result := msg.(compileResultMsg)
+	result := mustMsg[compileResultMsg](t, msg)
 	if result.err != nil {
 		t.Fatalf("compile error: %v", result.err)
 	}
@@ -499,7 +505,7 @@ int main(void) {
 
 	cmd := es.gdbCompileCmd(nil)
 	msg := cmd()
-	result := msg.(gdbReadyMsg)
+	result := mustMsg[gdbReadyMsg](t, msg)
 	if result.compileErr != nil && result.compileErr.Error != "" {
 		t.Fatalf("compile error: %s", result.compileErr.Error)
 	}
@@ -528,7 +534,7 @@ int main(void) {
 
 	cmd := es.interactiveCompileCmd(nil)
 	msg := cmd()
-	interMsg := msg.(interactiveReadyMsg)
+	interMsg := mustMsg[interactiveReadyMsg](t, msg)
 	if interMsg.compileErr != nil {
 		t.Fatalf("compile error: %s", interMsg.compileErr.Error)
 	}

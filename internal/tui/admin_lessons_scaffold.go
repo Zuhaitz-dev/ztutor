@@ -174,18 +174,18 @@ func (m *adminLessonScaffoldModel) runScaffold() {
 		"---\ndifficulty: beginner\ntags:\n  - change-me\ntutorial:\n  - Welcome to the %s lesson. Edit this line — it is Mochi's opening line.\n---\n# %s\n\nWrite your lesson content here in Markdown.\n\nThis text appears before the exercise. Explain the concept clearly.\n",
 		title, title,
 	)
-	if err := os.WriteFile(filepath.Join(dir, "lesson.md"), []byte(lessonMD), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "lesson.md"), []byte(lessonMD), 0600); err != nil {
 		m.errStr = "write lesson.md: " + err.Error()
 		return
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "exercise"+ext), []byte(scaffoldExerciseCode(m.language)), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "exercise"+ext), []byte(scaffoldExerciseCode(m.language)), 0600); err != nil {
 		m.errStr = "write exercise file: " + err.Error()
 		return
 	}
 
 	hints := "Replace this with your first hint.\n---\nReplace this with your second hint.\n"
-	if err := os.WriteFile(filepath.Join(dir, "hints.txt"), []byte(hints), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "hints.txt"), []byte(hints), 0600); err != nil {
 		m.errStr = "write hints.txt: " + err.Error()
 		return
 	}

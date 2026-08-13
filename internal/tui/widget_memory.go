@@ -223,17 +223,17 @@ func extractHeapStats(raw string) *heapStats {
 		}
 		clean := stripAsanPrefix(line)
 		if strings.Contains(clean, "in use at exit") {
-			fmt.Sscanf(clean, "in use at exit: %d bytes in %d blocks", &h.inUseBytes, &h.inUseBlocks)
+			_, _ = fmt.Sscanf(clean, "in use at exit: %d bytes in %d blocks", &h.inUseBytes, &h.inUseBlocks)
 		}
 		if strings.Contains(clean, "total heap usage") {
-			fmt.Sscanf(clean, "total heap usage: %d allocs, %d frees, %d bytes allocated",
+			_, _ = fmt.Sscanf(clean, "total heap usage: %d allocs, %d frees, %d bytes allocated",
 				&h.totalAllocs, &h.totalFrees, &h.totalBytes)
 		}
 		if strings.Contains(clean, "definitely lost") {
-			fmt.Sscanf(clean, "%d bytes in", &h.defLeaked)
+			_, _ = fmt.Sscanf(clean, "%d bytes in", &h.defLeaked)
 		}
 		if strings.Contains(clean, "indirectly lost") {
-			fmt.Sscanf(clean, "%d bytes in", &h.indLeaked)
+			_, _ = fmt.Sscanf(clean, "%d bytes in", &h.indLeaked)
 		}
 		if strings.Contains(line, "no leaks are possible") || strings.Contains(line, "All heap blocks were freed") {
 			break

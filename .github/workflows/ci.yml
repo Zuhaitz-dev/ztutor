@@ -6,12 +6,67 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  # Fast static checks on the full toolchain container (gofmt, vet, staticcheck,
+  # module hygiene).
+  lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     container:
       image: golang:1.25-bookworm
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: /go/pkg/mod
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Lint (gofmt + vet)
+        run: make lint
+
+      - name: Staticcheck
+        run: make lint-staticcheck
+
+      - name: Module hygiene
+        run: make verify-mod
+
+  # Broad static analysis (govet, staticcheck, errcheck, gosec, gocritic, ...).
+  golangci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.8
+
+  # Full test suite with toolchains, coverage gate, and race detector.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: golang:1.25-bookworm
     steps:
       - uses: actions/checkout@v4
 
@@ -24,27 +79,158 @@ jobs:
             openjdk-17-jdk-headless \
             git
 
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "/root/.cargo/bin" >> $GITHUB_PATH
+
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
           path: /go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-
-      - name: Lint
-        run: make lint
-
-      - name: Staticcheck
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          make lint-staticcheck
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
 
       - name: Test
         run: make test
 
+      - name: Coverage gate
+        run: make check-coverage
+
       - name: Race test
-        run: go test -race ./...
+        run: go test -race -shuffle=on -count=1 ./...
 
       - name: Build
         run: make build
         env:
           COMMIT: ${{ github.sha }}
+
+  # Bounded fuzzing of the in-tree fuzzers.
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: golang:1.25-bookworm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fuzz
+        run: make fuzz FUZZTIME=10
+
+  # Cross-compile check for the platforms we ship (linux arm64, darwin amd64/arm64).
+  crossbuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Cross-compile
+        run: |
+          set -euo pipefail
+          for target in "linux arm64" "darwin amd64" "darwin arm64"; do
+            set -- $target
+            echo "building GOOS=$1 GOARCH=$2"
+            CGO_ENABLED=0 GOOS=$1 GOARCH=$2 go build ./...
+          done
+
+  # Real macOS runner: builds and runs the test suite on darwin.
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Install toolchains
+        run: |
+          brew install gcc || true
+          if ! command -v rustc >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          fi
+
+      - name: Test
+        run: go test ./...
+
+  # Verify the production Docker image still builds.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          docker build -f Dockerfile.prod \
+            --build-arg VERSION=ci \
+            --build-arg COMMIT=${{ github.sha }} \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            -t ztutor:ci .
+
+  # Known vulnerabilities in the Go dependency graph.
+  govulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  # CodeQL static security analysis.
+  codeql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+  # Secret scanning.
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

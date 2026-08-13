@@ -12,13 +12,24 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Println("tuitest error:", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	// Use the project's courses/ directory when running from the repo root.
 	// If it doesn't exist, fall back to a minimal temp course so the tool
 	// still works after a fresh checkout without course content.
 	coursesDir := "./courses"
 	var cleanup func()
 	if !hasCourseManifests(coursesDir) {
-		coursesDir, cleanup = setupTempCourses()
+		var err error
+		coursesDir, cleanup, err = setupTempCourses()
+		if err != nil {
+			return err
+		}
 	}
 	if cleanup != nil {
 		defer cleanup()
@@ -26,38 +37,35 @@ func main() {
 
 	tmpDir, err := os.MkdirTemp("", "ztutor-tuitest-db-")
 	if err != nil {
-		fmt.Println("tempdir error:", err)
-		os.Exit(1)
+		return fmt.Errorf("tempdir: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	dbase, err := db.Open(tmpDir + "/test.db")
 	if err != nil {
-		fmt.Println("db error:", err)
-		os.Exit(1)
+		return fmt.Errorf("db: %w", err)
 	}
 	defer dbase.Close()
 
 	app := tui.NewApp("tester", coursesDir, "", dbase, 80, 24, "default")
 	p := tea.NewProgram(app, tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout))
 	if _, err := p.Run(); err != nil {
-		fmt.Println("tui error:", err)
+		return fmt.Errorf("tui: %w", err)
 	}
+	return nil
 }
 
 // setupTempCourses creates a minimal course tree so tuitest works without the
 // real course content. Returns the courses dir path and a cleanup function.
-func setupTempCourses() (string, func()) {
+func setupTempCourses() (string, func(), error) {
 	dir, err := os.MkdirTemp("", "ztutor-tuitest-courses-")
 	if err != nil {
-		fmt.Println("tempdir error:", err)
-		os.Exit(1)
+		return "", nil, fmt.Errorf("tempdir: %w", err)
 	}
 
 	lessonDir := dir + "/01-intro/lessons/01-hello"
 	if err := os.MkdirAll(lessonDir, 0755); err != nil {
-		fmt.Println("mkdir error:", err)
-		os.Exit(1)
+		return "", nil, fmt.Errorf("mkdir: %w", err)
 	}
 
 	courseYAML := `id: 01-intro
@@ -76,16 +84,14 @@ toolchain:
 `
 	lessonMD := "# Hello World\n\nWrite a program that prints \"Hello, World!\".\n\n## Exercise\n\n```c\n#include <stdio.h>\n\nint main(void) {\n    printf(\"Hello, World!\\n\");\n    return 0;\n}\n```\n"
 
-	if err := os.WriteFile(dir+"/01-intro/course.yaml", []byte(courseYAML), 0644); err != nil {
-		fmt.Println("write course.yaml error:", err)
-		os.Exit(1)
+	if err := os.WriteFile(dir+"/01-intro/course.yaml", []byte(courseYAML), 0600); err != nil {
+		return "", nil, fmt.Errorf("write course.yaml: %w", err)
 	}
-	if err := os.WriteFile(lessonDir+"/lesson.md", []byte(lessonMD), 0644); err != nil {
-		fmt.Println("write lesson.md error:", err)
-		os.Exit(1)
+	if err := os.WriteFile(lessonDir+"/lesson.md", []byte(lessonMD), 0600); err != nil {
+		return "", nil, fmt.Errorf("write lesson.md: %w", err)
 	}
 
-	return dir, func() { os.RemoveAll(dir) }
+	return dir, func() { os.RemoveAll(dir) }, nil
 }
 
 func hasCourseManifests(dir string) bool {

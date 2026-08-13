@@ -84,7 +84,7 @@ func TestChallengeScreen_Submit(t *testing.T) {
 	}
 
 	model, cmd := cs.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
-	cs = model.(*ChallengeScreen)
+	cs = mustModel[*ChallengeScreen](t, model)
 	if !cs.compiling {
 		t.Error("compiling should be true after KeyRun")
 	}
@@ -106,7 +106,7 @@ func TestChallengeScreen_Submit_BackAfterSubmit(t *testing.T) {
 	cs.submitted = true
 
 	model, cmd := cs.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	_ = model.(*ChallengeScreen)
+	_ = mustModel[*ChallengeScreen](t, model)
 	if cmd == nil {
 		t.Error("expected NavigateToMenu command after submit+enter")
 	}
@@ -145,13 +145,13 @@ func TestChallengeScreen_MochiToggle(t *testing.T) {
 	}
 
 	model, _ := cs.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
-	cs = model.(*ChallengeScreen)
+	cs = mustModel[*ChallengeScreen](t, model)
 	if !cs.mascotHidden {
 		t.Error("mascot should be hidden after mochi toggle")
 	}
 
 	model, _ = cs.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
-	cs = model.(*ChallengeScreen)
+	cs = mustModel[*ChallengeScreen](t, model)
 	if cs.mascotHidden {
 		t.Error("mascot should be visible after second mochi toggle")
 	}
@@ -230,7 +230,7 @@ func TestChallengeScreen_WindowSizeMsg(t *testing.T) {
 	cs := NewChallengeScreen(ch, "test-course", lang, sandbox.NewSuccessExecutor(), 80, 40, loc)
 
 	model, _ := cs.Update(tea.WindowSizeMsg{Width: 120, Height: 60})
-	cs = model.(*ChallengeScreen)
+	cs = mustModel[*ChallengeScreen](t, model)
 	if cs.Width != 120 {
 		t.Errorf("width = %d, want 120", cs.Width)
 	}
@@ -340,7 +340,7 @@ func TestChallengeScreen_ChallengeTestResultMsg_AllPass(t *testing.T) {
 	}
 
 	model, _ := cs.Update(msg)
-	cs = model.(*ChallengeScreen)
+	cs = mustModel[*ChallengeScreen](t, model)
 
 	if !cs.submitted {
 		t.Error("submitted should be true after result msg")
@@ -369,7 +369,7 @@ func TestChallengeScreen_ChallengeTestResultMsg_CompileError(t *testing.T) {
 	}
 
 	model, _ := cs.Update(msg)
-	cs = model.(*ChallengeScreen)
+	cs = mustModel[*ChallengeScreen](t, model)
 
 	if cs.compiling {
 		t.Error("compiling should be false after compile error")
@@ -398,7 +398,7 @@ func TestChallengeScreen_ChallengeTestResultMsg_RuntimeError(t *testing.T) {
 	}
 
 	model, _ := cs.Update(msg)
-	cs = model.(*ChallengeScreen)
+	cs = mustModel[*ChallengeScreen](t, model)
 
 	if !cs.submitted {
 		t.Error("submitted should be true after result")

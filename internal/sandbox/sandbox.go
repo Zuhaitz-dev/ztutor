@@ -236,7 +236,7 @@ func writeFiles(dir string, files map[string]string) error {
 				return fmt.Errorf("mkdir %s: %w", sub, err)
 			}
 		}
-		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(p, []byte(content), 0600); err != nil {
 			return fmt.Errorf("write %s: %w", name, err)
 		}
 	}
@@ -582,7 +582,7 @@ func RunInteractive(command string, args []string) (writeFn func([]byte) error, 
 	}
 	kill = func() {
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		}
 	}
 	return writeFn, ch, kill, nil
@@ -651,7 +651,7 @@ func RunDebugger(command string, args []string) (writeFn func([]byte) error, eve
 	}
 	kill = func() {
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		}
 	}
 	return writeFn, ch, kill, nil

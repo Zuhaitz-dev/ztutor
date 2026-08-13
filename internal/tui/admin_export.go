@@ -135,7 +135,7 @@ func (m *adminExportModel) runExport(idx int) {
 	}
 
 	outPath := filepath.Join(exportsDir, name)
-	if err := os.WriteFile(outPath, data, 0o644); err != nil {
+	if err := os.WriteFile(outPath, data, 0o600); err != nil {
 		m.result = "write failed: " + err.Error()
 		m.isErr = true
 		m.done = true

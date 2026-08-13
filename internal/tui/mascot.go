@@ -114,7 +114,6 @@ func renderMascotPanel(width int, speaker, text string, mood MascotMood, frame i
 	if textW < 12 {
 		textW = innerW
 		catLines = nil
-		catW = 0
 		gapW = 0
 	}
 

@@ -1,0 +1,49 @@
+# golangci-lint configuration.
+# Run with: make lint-full
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - gosec
+    - misspell
+    - bodyclose
+    - gocritic
+    - unconvert
+    - whitespace
+    - nilerr
+    - copyloopvar
+    - forcetypeassert
+    - durationcheck
+
+linters-settings:
+  gosec:
+    excludes:
+      # G404: weak random source — used for cosmetic output (matrix rain,
+      # colors) where crypto/rand is not warranted.
+      - G404
+      # G115: integer overflow conversions are not a threat here.
+      - G115
+      # G204: launching student/configured code is the entire purpose of the
+      # sandbox; the inputs are user code by design.
+      - G204
+  gocritic:
+    disabled-checks:
+      - ifElseChain
+      - singleCaseSwitch
+      - elseif
+
+issues:
+  exclude-rules:
+    # Test code: ignore error-return and file-permission/ssh-key nits that are
+    # idiomatic in test fixtures. vet/staticcheck/gocritic still apply.
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec

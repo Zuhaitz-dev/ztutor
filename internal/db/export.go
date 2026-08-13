@@ -54,7 +54,10 @@ func (db *DB) ImportStudentsCSV(data []byte) (ImportResult, error) {
 
 		// Skip existing accounts.
 		var count int
-		db.conn.QueryRow(`SELECT COUNT(*) FROM users WHERE username = ?`, username).Scan(&count)
+		if err := db.conn.QueryRow(`SELECT COUNT(*) FROM users WHERE username = ?`, username).Scan(&count); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: count check: %v", username, err))
+			continue
+		}
 		if count > 0 {
 			result.Skipped = append(result.Skipped, username)
 			continue

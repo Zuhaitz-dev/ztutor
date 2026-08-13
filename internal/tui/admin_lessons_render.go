@@ -203,8 +203,7 @@ func (m *adminLessonCreateModel) viewExpected() string {
 		BorderForeground(lipgloss.Color(ColorBorder)).
 		Padding(0, 1)
 
-	modeA := "Solution"
-	modeB := "Manual"
+	var modeA, modeB string
 	if m.expectedMode == 0 {
 		modeA = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent)).Bold(true).Render("[Solution]")
 		modeB = dim("Manual")

@@ -61,7 +61,7 @@ func TestMenuEnterCourse_NoIntroWithoutCourseIntro(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("course without course_intro should not trigger intro")
 	}
-	got := model.(*MenuScreen)
+	got := mustModel[*MenuScreen](t, model)
 	if got.viewLevel != "lessons" {
 		t.Fatalf("viewLevel = %q, want lessons", got.viewLevel)
 	}
@@ -87,7 +87,7 @@ func TestMenuEnterCourse_WithCourseIntroTriggersIntro(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("course with course_intro should trigger intro")
 	}
-	got := model.(*MenuScreen)
+	got := mustModel[*MenuScreen](t, model)
 	if got.viewLevel != "courses" {
 		t.Fatalf("viewLevel = %q, want courses before intro completes", got.viewLevel)
 	}

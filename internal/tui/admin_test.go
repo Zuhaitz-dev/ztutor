@@ -38,6 +38,33 @@ func assertViewNonEmpty(t *testing.T, name string, view string) {
 	}
 }
 
+// mustModel asserts that m has concrete type T and returns it, failing the
+// test otherwise.
+func mustModel[T any](t *testing.T, m tea.Model) T {
+	t.Helper()
+	v, ok := m.(T)
+	if !ok {
+		t.Fatalf("model = %T, want %T", m, (*T)(nil))
+	}
+	return v
+}
+
+// mustApp is a typed convenience wrapper for the AdminApp model.
+func mustApp(t *testing.T, m tea.Model) *AdminApp {
+	t.Helper()
+	return mustModel[*AdminApp](t, m)
+}
+
+// mustMsg asserts that m has concrete message type T and returns it.
+func mustMsg[T any](t *testing.T, m tea.Msg) T {
+	t.Helper()
+	v, ok := m.(T)
+	if !ok {
+		t.Fatalf("msg = %T, want %T", m, (*T)(nil))
+	}
+	return v
+}
+
 // ── TestAdminDashboard_View ──────────────────────────────────────────────────
 
 func TestAdminDashboard_View(t *testing.T) {
@@ -136,7 +163,10 @@ func TestAdminAddStudent_Flow(t *testing.T) {
 
 	// Press enter to create the student.
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m2 := model.(*adminAddStudentModel)
+	m2, ok := model.(*adminAddStudentModel)
+	if !ok {
+		t.Fatalf("model = %T, want *adminAddStudentModel", model)
+	}
 
 	// The password should be shown (showPending = true).
 	if !m2.showPending {
@@ -172,7 +202,10 @@ func TestAdminAddStudent_EmptyName(t *testing.T) {
 
 	// Press enter with empty username.
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m2 := model.(*adminAddStudentModel)
+	m2, ok := model.(*adminAddStudentModel)
+	if !ok {
+		t.Fatalf("model = %T, want *adminAddStudentModel", model)
+	}
 
 	if m2.msg == "" {
 		t.Error("expected error message for empty username")
@@ -357,14 +390,18 @@ func TestAdminApp_Navigation(t *testing.T) {
 
 	// Press 's' on dashboard → returns NavigateToStudents cmd.
 	model, cmd1 := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	app = model.(*AdminApp)
+	var ok bool
+	app, ok = model.(*AdminApp)
+	if !ok {
+		t.Fatalf("model = %T, want *AdminApp", model)
+	}
 	if cmd1 == nil {
 		t.Fatal("expected NavigateToStudents cmd from 's' key")
 	}
 	// Execute the cmd to get the navigation message; feed it back.
 	nav1 := cmd1()
 	model, _ = app.Update(nav1)
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 	view2 := app2.View()
 	assertViewNonEmpty(t, "admin app student list", view2)
 	plain2 := stripANSI(view2)
@@ -380,7 +417,7 @@ func TestAdminApp_Navigation(t *testing.T) {
 	}
 	nav2 := cmd3()
 	model4, _ := model3.Update(nav2)
-	app4 := model4.(*AdminApp)
+	app4 := mustApp(t, model4)
 	view3 := app4.View()
 	assertViewNonEmpty(t, "admin app back to dashboard", view3)
 
@@ -404,7 +441,7 @@ func TestAdminApp_StudentsNavigate(t *testing.T) {
 
 	// Navigate to student list via message.
 	model, _ := app.Update(NavigateToAdminStudents{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	plain := stripANSI(view)
@@ -424,7 +461,7 @@ func TestAdminApp_CoursesNavigate(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminCourses{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	assertViewNonEmpty(t, "courses list after navigation", view)
@@ -445,7 +482,7 @@ func TestAdminApp_AchievementsNavigate(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminAchievements{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	assertViewNonEmpty(t, "achievements after navigation", view)
@@ -466,7 +503,7 @@ func TestAdminApp_ExportNavigate(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminExport{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	assertViewNonEmpty(t, "export after navigation", view)
@@ -488,7 +525,7 @@ func TestAdminApp_StudentDetailNavigate(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminStudentDetail{Username: "dave"})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	assertViewNonEmpty(t, "student detail after navigation", view)
@@ -509,7 +546,7 @@ func TestAdminApp_LessonCreateNavigate(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminLessonCreate{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	assertViewNonEmpty(t, "lesson create after navigation", view)
@@ -530,7 +567,7 @@ func TestAdminApp_LessonImportNavigate(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminLessonImport{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	assertViewNonEmpty(t, "lesson import after navigation", view)
@@ -551,7 +588,7 @@ func TestAdminApp_AddStudentNavigate(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminAddStudent{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	assertViewNonEmpty(t, "add student after navigation", view)
@@ -572,10 +609,10 @@ func TestAdminApp_DashboardBackFromStudents(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(NavigateToAdminStudents{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	model2, _ := app2.Update(NavigateToAdminDashboard{})
-	app3 := model2.(*AdminApp)
+	app3 := mustApp(t, model2)
 
 	view := app3.View()
 	assertViewNonEmpty(t, "dashboard after back navigation", view)
@@ -597,7 +634,7 @@ func TestAdminApp_StudentToggle(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(adminStudentToggleMsg{username: "eve", enabled: false})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	plain := stripANSI(view)
@@ -625,7 +662,7 @@ func TestAdminApp_PasswordResetDoneMsg(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(adminPasswordResetDoneMsg{})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	view := app2.View()
 	assertViewNonEmpty(t, "student list after password reset done", view)
@@ -660,7 +697,7 @@ func TestAdminApp_WindowSizeMsg(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	if app2.Width != 100 {
 		t.Errorf("width = %d, want 100", app2.Width)
@@ -681,7 +718,7 @@ func TestAdminApp_WindowSizeMsg_Zero(t *testing.T) {
 	app := NewAdminApp("admin", database, lessonsDir, coursesDir, achFile, 80, 24)
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 0, Height: 0})
-	app2 := model.(*AdminApp)
+	app2 := mustApp(t, model)
 
 	if app2.Width != 80 {
 		t.Errorf("width = %d, want 80 (unchanged)", app2.Width)
@@ -853,13 +890,13 @@ func TestAdminStudentList_CursorKeys(t *testing.T) {
 	m := newAdminStudentList(database, nil, 80, 24)
 
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	m2 := model.(*adminStudentListModel)
+	m2 := mustModel[*adminStudentListModel](t, model)
 	if m2.offset != 1 {
 		t.Errorf("after 'j': offset = %d, want 1", m2.offset)
 	}
 
 	model2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	m3 := model2.(*adminStudentListModel)
+	m3 := mustModel[*adminStudentListModel](t, model2)
 	if m3.offset != 0 {
 		t.Errorf("after 'k': offset = %d, want 0", m3.offset)
 	}
@@ -928,13 +965,13 @@ func TestAdminAchievements_CreateMode(t *testing.T) {
 	m := newAdminAchievements(achFile, 80, 24)
 
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	m2 := model.(*adminAchievementsModel)
+	m2 := mustModel[*adminAchievementsModel](t, model)
 	if m2.mode != achCreate {
 		t.Error("expected achCreate mode after pressing 'n'")
 	}
 
 	model2, _ := m2.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	m3 := model2.(*adminAchievementsModel)
+	m3 := mustModel[*adminAchievementsModel](t, model2)
 	if m3.mode != achList {
 		t.Error("expected achList mode after pressing esc")
 	}
@@ -1044,7 +1081,7 @@ func TestAdminPasswordReset_GeneratePassword(t *testing.T) {
 
 	// Press enter with empty input (generates a random password).
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m2 := model.(*adminPasswordResetModel)
+	m2 := mustModel[*adminPasswordResetModel](t, model)
 
 	if !m2.done {
 		t.Error("expected done=true after resetting password")
